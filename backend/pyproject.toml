@@ -1,0 +1,69 @@
+[project]
+name = "drms_backend"
+version = "0.1.0"
+description = "Digital Records Management System Backend"
+readme = "README.md"
+requires-python = ">=3.14"
+dependencies = [
+    "aiofiles>=25.1.0",
+    "aiosqlite>=0.22.1",
+    "alembic>=1.18.1",
+    "asyncpg>=0.31.0",
+    "cryptography>=46.0.4",
+    "dependency-injector>=4.48.3",
+    "fastapi>=0.128.0",
+    "gunicorn>=25.0.2",
+    "passlib>=1.7.4",
+    "pydantic-settings>=2.12.0",
+    "pydantic[email]>=2.12.5",
+    "python-multipart>=0.0.21",
+    "pytz>=2025.2",
+    "sqlalchemy>=2.0.45",
+    "uvicorn>=0.40.0",
+]
+
+[dependency-groups]
+dev = [
+    "bandit>=1.9.3",
+    "httpx>=0.28.1",
+    "mypy>=1.19.1",
+    "pytest>=9.0.2",
+    "pytest-asyncio>=1.3.0",
+    "pytest-cov>=7.0.0",
+    "ruff>=0.14.13",
+    "types-passlib>=1.7.7.20250602",
+    "types-pytz>=2025.2.0.20251108",
+]
+
+[tool.mypy]
+strict = true
+exclude = [".venv", "alembic"]
+
+[tool.ruff]
+target-version = "py314"
+exclude = ["alembic"]
+
+
+[tool.ruff.lint]
+select = [
+    "E",  # pycodestyle errors
+    "W",  # pycodestyle warnings
+    "F",  # pyflakes
+    "I",  # isort
+    "B",  # flake8-bugbear
+    "C4",  # flake8-comprehensions
+    "UP",  # pyupgrade
+    "ARG001", # unused arguments in functions
+    "T201",   # print statements are not allowed
+]
+ignore = [
+    "E501",  # line too long, handled by black
+    "B008",  # do not perform function calls in argument defaults
+    "W191",  # indentation contains tabs
+    "B904",  # Allow raising exceptions without from e, for HTTPException
+]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+testpaths = ["tests"]
