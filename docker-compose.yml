@@ -1,0 +1,46 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_DB: test
+      POSTGRES_USER: test
+      POSTGRES_PASSWORD: test123
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "test"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build: ./backend
+    ports:
+      - "8000:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - uploaded_documents:/app/documents
+    environment:
+      - DATABASE_URL=postgresql+asyncpg://test:test123@postgres:5432/test
+      - LOG_LEVEL=DEBUG
+      - UPLOAD_DIR=/app/uploads
+
+  frontend:
+    depends_on:
+      - backend
+    build: ./frontend
+    container_name: frontend
+    ports:
+      - "3000:3000"
+    restart: unless-stopped
+
+
+volumes:
+  postgres_data:
+  uploaded_documents:

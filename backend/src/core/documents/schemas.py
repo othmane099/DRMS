@@ -1,0 +1,124 @@
+from datetime import date, datetime
+from typing import Annotated
+
+from pydantic import UUID4, BaseModel, ConfigDict, Field
+
+from auth.users.schemas import UserBasicResponse
+from configuration.categories.schemas import CategoryBasicResponse
+from configuration.stages.schemas import StageBasicResponse
+from configuration.subcategories.schemas import SubcategoryBasicResponse
+from configuration.tags.schemas import TagBasicResponse
+
+
+class DocumentCreate(BaseModel):
+    name: Annotated[str, Field(max_length=255)]
+    category_id: UUID4
+    subcategory_id: UUID4
+    stage_id: UUID4
+    assigned_to: UUID4
+    description: str | None = None
+    tag_ids: list[UUID4] | None = None
+
+
+class DocumentUpdate(BaseModel):
+    name: Annotated[str, Field(max_length=255)]
+    category_id: UUID4
+    subcategory_id: UUID4
+    stage_id: UUID4
+    assigned_to: UUID4
+    description: str | None = None
+    tag_ids: list[UUID4] | None = None
+
+
+class DocumentResponse(BaseModel):
+    id: UUID4
+    name: str
+    category_id: UUID4
+    subcategory_id: UUID4
+    stage_id: UUID4
+    assigned_to: UUID4
+    description: str | None
+    archive: bool
+    created_by: UUID4
+    stage: StageBasicResponse
+    assigned_user: UserBasicResponse
+    creator: UserBasicResponse
+    category: CategoryBasicResponse
+    subcategory: SubcategoryBasicResponse
+    tags: list[TagBasicResponse]
+    created_at: datetime
+    updated_at: datetime | None
+    model_config = ConfigDict(from_attributes=True)
+
+
+class DocumentBasicResponse(BaseModel):
+    name: str
+    model_config = ConfigDict(from_attributes=True)
+
+
+class VersionHistoryResponse(BaseModel):
+    id: UUID4
+    document_id: UUID4
+    document_file: str
+    version_number: int
+    is_current: bool
+    created_by: UUID4
+    creator: UserBasicResponse
+    created_at: datetime
+    model_config = ConfigDict(from_attributes=True)
+
+
+class PaginatedDocumentResponse(BaseModel):
+    data: list[DocumentResponse]
+    current_page: int
+    total_pages: int
+    total_rows: int
+    page_size: int
+    has_next: bool
+    has_previous: bool
+
+
+class DocumentCommentCreate(BaseModel):
+    comment: Annotated[str, Field(min_length=1)]
+
+
+class DocumentCommentResponse(BaseModel):
+    id: UUID4
+    document_id: UUID4
+    user_id: UUID4
+    comment: str
+    created_at: datetime
+    updated_at: datetime | None
+    user: UserBasicResponse
+    model_config = ConfigDict(from_attributes=True)
+
+
+class ShareDocumentCreate(BaseModel):
+    user_ids: Annotated[list[UUID4], Field(min_length=1)]
+    start_date: Annotated[str, Field(pattern=r"^\d{4}-\d{2}-\d{2}$")] | None = None
+    end_date: Annotated[str, Field(pattern=r"^\d{4}-\d{2}-\d{2}$")] | None = None
+
+
+class ShareDocumentResponse(BaseModel):
+    id: UUID4
+    document_id: UUID4
+    user_id: UUID4
+    start_date: date | None
+    end_date: date | None
+    created_at: datetime
+    updated_at: datetime | None
+    user: UserBasicResponse
+    model_config = ConfigDict(from_attributes=True)
+
+
+class ShareLinkCreate(BaseModel):
+    expiration_date: Annotated[str, Field(pattern=r"^\d{4}-\d{2}-\d{2}$")] | None = None
+    password: str | None = None
+
+
+class ShareLinkResponse(BaseModel):
+    token: str
+
+
+class ShareLinkAccessRequest(BaseModel):
+    password: str | None = None
