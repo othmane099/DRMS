@@ -48,8 +48,6 @@ class Container(containers.DeclarativeContainer):
     role_service = providers.Factory(
         RoleServiceImpl,
         unit_of_work=unit_of_work,
-        permission_service=permission_service,
-        user_service=user_service,
     )
     session_service = providers.Factory(
         SessionServiceImpl,

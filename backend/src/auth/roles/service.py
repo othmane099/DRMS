@@ -7,7 +7,6 @@ from pydantic import UUID4
 from starlette import status
 
 from auth.models import Role
-from auth.permissions.service import PermissionService
 from auth.roles.schemas import (
     AssignPermissionsRequest,
     RoleCreate,
@@ -15,7 +14,6 @@ from auth.roles.schemas import (
     RoleStatusUpdate,
     RoleUpdate,
 )
-from auth.users.service import UserService
 from schemas import Error, Message
 from unit_of_work.uow import UnitOfWork
 
@@ -51,12 +49,8 @@ class RoleServiceImpl(RoleService):
     def __init__(
         self,
         unit_of_work: UnitOfWork = Provide["unit_of_work"],
-        permission_service: PermissionService = Provide["permission_service"],
-        user_service: UserService = Provide["user_service"],
     ):
         self._unit_of_work = unit_of_work
-        self._permission_service = permission_service
-        self._user_service = user_service
 
     async def get_all_roles(self) -> list[RoleResponse]:
         logger.debug("Fetching all roles")
@@ -64,12 +58,11 @@ class RoleServiceImpl(RoleService):
             roles = await uow.role_repository.get_all_roles()
             role_responses = []
             for role in roles:
-                permission_count = (
-                    await self._permission_service.get_permission_count_by_role_id(
-                        role.id
-                    )
+                permissions = (
+                    await uow.permission_repository.get_permissions_by_role_id(role.id)
                 )
-                user_count = await self._user_service.count_users_by_role_id(role.id)
+                permission_count = len(permissions)
+                user_count = await uow.user_repository.count_users_by_role_id(role.id)
                 role_responses.append(
                     RoleResponse(
                         id=role.id,
@@ -179,7 +172,8 @@ class RoleServiceImpl(RoleService):
                 logger.warning("Role deletion failed: not found (id=%s)", role_id)
                 return Error(detail="Role not found", code=status.HTTP_404_NOT_FOUND)
 
-            user_count = await self._user_service.count_users_by_role_id(role_id)
+            # Check if any users are assigned to this role
+            user_count = await uow.user_repository.count_users_by_role_id(role_id)
             if user_count > 0:
                 logger.warning(
                     "Role deletion failed: users are assigned (id=%s, user_count=%s)",

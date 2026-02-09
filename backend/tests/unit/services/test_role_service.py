@@ -5,10 +5,8 @@ import pytest
 from starlette import status
 
 sys.path.append(f"{os.getcwd()}/src")
-from auth.permissions.fakes import FakePermissionService
 from auth.roles.schemas import RoleCreate, RoleStatusUpdate, RoleUpdate
 from auth.roles.service import RoleServiceImpl
-from auth.users.fakes import FakeUserService
 from schemas import Error, Message
 from unit_of_work.fake_uow import FakeUnitOfWork
 
@@ -20,25 +18,9 @@ def uow():
 
 
 @pytest.fixture
-def permission_service():
-    """Provide a fake permission service."""
-    return FakePermissionService()
-
-
-@pytest.fixture
-def user_service():
-    """Provide a fake user service."""
-    return FakeUserService()
-
-
-@pytest.fixture
-def role_service(uow, permission_service, user_service):
+def role_service(uow):
     """Provide a role service with fake UoW and services."""
-    return RoleServiceImpl(
-        unit_of_work=uow,
-        permission_service=permission_service,
-        user_service=user_service,
-    )
+    return RoleServiceImpl(unit_of_work=uow)
 
 
 @pytest.mark.asyncio
