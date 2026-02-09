@@ -62,9 +62,6 @@ class Container(containers.DeclarativeContainer):
     auth_service = providers.Factory(
         AuthService,
         unit_of_work=unit_of_work,
-        user_service=user_service,
-        session_service=session_service,
-        logged_history_service=logged_history_service,
     )
     stage_service = providers.Factory(
         StageServiceImpl,
