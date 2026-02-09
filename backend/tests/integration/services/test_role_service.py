@@ -7,10 +7,8 @@ from sqlalchemy import select
 sys.path.insert(0, f"{os.getcwd()}/src")
 
 from auth.models import Role  # noqa: E402
-from auth.permissions.service import PermissionServiceImpl  # noqa: E402
 from auth.roles.schemas import RoleCreate, RoleStatusUpdate, RoleUpdate  # noqa: E402
 from auth.roles.service import RoleServiceImpl  # noqa: E402
-from auth.users.service import UserServiceImpl  # noqa: E402
 from db import default_session_factory  # noqa: E402
 from schemas import Error  # noqa: E402
 from unit_of_work.uow import UnitOfWorkImpl  # noqa: E402
@@ -20,13 +18,7 @@ from unit_of_work.uow import UnitOfWorkImpl  # noqa: E402
 def role_service():
     """Provide role service with real database."""
     uow = UnitOfWorkImpl(session_factory=default_session_factory)
-    permission_service = PermissionServiceImpl(unit_of_work=uow)
-    user_service = UserServiceImpl(unit_of_work=uow)
-    return RoleServiceImpl(
-        unit_of_work=uow,
-        permission_service=permission_service,
-        user_service=user_service,
-    )
+    return RoleServiceImpl(unit_of_work=uow)
 
 
 @pytest.mark.asyncio
