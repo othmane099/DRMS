@@ -111,6 +111,7 @@ async def test_get_documents_api_success(document_service):
         stage_id=None,
         created_date=None,
         archive=False,
+        search=None,
         document_service=document_service,
     )
 
@@ -133,6 +134,7 @@ async def test_get_documents_api_pagination(document_service):
         stage_id=None,
         created_date=None,
         archive=False,
+        search=None,
         document_service=document_service,
     )
 
@@ -154,6 +156,7 @@ async def test_get_documents_api_with_category_filter(document_service):
         stage_id=None,
         created_date=None,
         archive=False,
+        search=None,
         document_service=document_service,
     )
 
@@ -171,6 +174,7 @@ async def test_get_documents_api_with_stage_filter(document_service):
         stage_id=document_service.test_stage_id,
         created_date=None,
         archive=False,
+        search=None,
         document_service=document_service,
     )
 
@@ -187,6 +191,8 @@ async def test_get_documents_api_empty(document_service):
         category_id=uuid4(),  # Non-existent category
         stage_id=None,
         created_date=None,
+        archive=False,
+        search=None,
         document_service=document_service,
     )
 
@@ -1029,6 +1035,7 @@ async def test_get_documents_excludes_archived_by_default_api(document_service):
         stage_id=None,
         created_date=None,
         archive=False,
+        search=None,
         document_service=document_service,
     )
 
@@ -1089,6 +1096,7 @@ async def test_get_documents_with_archive_filter_true_api(document_service):
         stage_id=None,
         created_date=None,
         archive=True,
+        search=None,
         document_service=document_service,
     )
 
