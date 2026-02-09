@@ -130,7 +130,7 @@ async def test_get_document_histories_api_with_pagination():
     history_service = FakeHistoryService()
 
     # Mock some histories by overriding the method
-    async def mock_get_histories(page, page_size):
+    async def mock_get_histories(page, page_size, search=None):
         from auth.users.schemas import UserBasicResponse
         from core.histories.schemas import (
             DocumentBasicResponse,
