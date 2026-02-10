@@ -19,11 +19,8 @@ async def test_get_permissions_success(client: AsyncClient, superuser_token: str
     assert any(p["code"] == "users.list" for p in data)
 
 
-# Permission-based tests
-
-
 @pytest.mark.asyncio
-async def test_list_permissions_with_permission(
+async def test_get_permissions_with_permission(
     client: AsyncClient, user_with_permissions_permissions: str
 ):
     """Test GET /api/v1/permissions succeeds with permissions.list permission."""
@@ -36,7 +33,7 @@ async def test_list_permissions_with_permission(
 
 
 @pytest.mark.asyncio
-async def test_list_permissions_without_permission(
+async def test_get_permissions_without_permission(
     client: AsyncClient, user_without_permissions: str
 ):
     """Test GET /api/v1/permissions fails without permissions.list permission."""
