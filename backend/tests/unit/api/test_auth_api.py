@@ -12,44 +12,38 @@ from auth.api import login, logout  # noqa: E402
 from auth.fakes import FakeAuthService  # noqa: E402
 from auth.schemas import LoginRequest  # noqa: E402
 from auth.sessions.fakes import FakeSessionService  # noqa: E402
-from auth.users.schemas import UserCreate  # noqa: E402
-
-
-@pytest.fixture
-def auth_service():
-    """Provide FakeAuthService for testing."""
-    return FakeAuthService()
 
 
 @pytest.fixture
 def session_service():
-    """Provide FakeSessionService."""
     return FakeSessionService()
 
 
 @pytest.fixture
+def auth_service(session_service):
+    return FakeAuthService(session_service)
+
+
+@pytest.fixture
 def mock_request():
-    """Provide a mock Request object with client IP."""
     request = MagicMock()
     request.client.host = "127.0.0.1"
     return request
 
 
 @pytest.fixture
-async def setup_test_user(auth_service):
-    """Create a test user for authentication tests."""
-    user_data = UserCreate(
-        first_name="Test",
-        last_name="User",
+def setup_test_user(auth_service):
+    auth_service.add_user(
         username="testuser",
         password="TestPassword123",
         is_active=True,
+        first_name="Test",
+        last_name="User",
     )
-    await auth_service._user_service.create_user(user_data)
 
 
 @pytest.mark.asyncio
-async def test_login_success(auth_service, setup_test_user, mock_request):
+async def test_login_success(auth_service, setup_test_user, mock_request):  # noqa: ARG001
     """Test POST /login endpoint with valid credentials."""
     body = LoginRequest(username="testuser", password="TestPassword123")
 
@@ -75,14 +69,11 @@ async def test_login_invalid_credentials(auth_service, mock_request):
 @pytest.mark.asyncio
 async def test_login_inactive_user(auth_service, mock_request):
     """Test POST /login endpoint with inactive user."""
-    user_data = UserCreate(
-        first_name="Inactive",
-        last_name="User",
+    auth_service.add_user(
         username="inactiveuser",
         password="TestPassword123",
         is_active=False,
     )
-    await auth_service._user_service.create_user(user_data)
 
     body = LoginRequest(username="inactiveuser", password="TestPassword123")
 
@@ -94,7 +85,12 @@ async def test_login_inactive_user(auth_service, mock_request):
 
 
 @pytest.mark.asyncio
-async def test_logout_success(auth_service, setup_test_user, mock_request):
+async def test_logout_success(
+    auth_service,
+    mock_request,
+    session_service,
+    setup_test_user,  # noqa: ARG001
+):
     """Test POST /logout endpoint with valid session."""
     body = LoginRequest(username="testuser", password="TestPassword123")
     login_result = await login(
@@ -102,9 +98,7 @@ async def test_logout_success(auth_service, setup_test_user, mock_request):
     )
     token = login_result.token
 
-    result = await logout(
-        x_session_key=token, session_service=auth_service._session_service
-    )
+    result = await logout(x_session_key=token, session_service=session_service)
 
     assert result.detail == "Sessions invalidated successfully"
 
@@ -119,7 +113,12 @@ async def test_logout_invalid_session(session_service):
 
 
 @pytest.mark.asyncio
-async def test_logout_already_invalidated(auth_service, setup_test_user, mock_request):
+async def test_logout_already_invalidated(
+    auth_service,
+    session_service,
+    mock_request,
+    setup_test_user,  # noqa: ARG001
+):
     """Test POST /logout endpoint with already invalidated session."""
     body = LoginRequest(username="testuser", password="TestPassword123")
     login_result = await login(
@@ -127,9 +126,9 @@ async def test_logout_already_invalidated(auth_service, setup_test_user, mock_re
     )
     token = login_result.token
 
-    await logout(x_session_key=token, session_service=auth_service._session_service)
+    await logout(x_session_key=token, session_service=session_service)
 
     with pytest.raises(HTTPException) as exc_info:
-        await logout(x_session_key=token, session_service=auth_service._session_service)
+        await logout(x_session_key=token, session_service=session_service)
 
     assert exc_info.value.status_code == 401
