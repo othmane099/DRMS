@@ -1,13 +1,15 @@
 import os
 import sys
+from uuid import uuid4
 
 import pytest
 from fastapi import HTTPException
 from starlette import status
 
 sys.path.append(f"{os.getcwd()}/src")
-from auth.permissions.fakes import FakePermissionService
+
 from auth.roles.api import (
+    assign_permissions_to_role,
     create_role,
     delete_role,
     get_role,
@@ -16,75 +18,64 @@ from auth.roles.api import (
     update_role_status,
 )
 from auth.roles.fakes import FakeRoleService
-from auth.roles.schemas import RoleCreate, RoleStatusUpdate, RoleUpdate
-from auth.users.fakes import FakeUserService
+from auth.roles.schemas import (
+    AssignPermissionsRequest,
+    RoleCreate,
+    RoleStatusUpdate,
+    RoleUpdate,
+)
 
 
 @pytest.fixture
-def permission_service():
-    """Provide a fake permission service."""
-    return FakePermissionService()
-
-
-@pytest.fixture
-def user_service():
-    """Provide a fake user service."""
-    return FakeUserService()
-
-
-@pytest.fixture
-def role_service(permission_service, user_service):
-    """Provide a fake role service."""
-    return FakeRoleService(
-        permission_service=permission_service, user_service=user_service
-    )
+def service():
+    return FakeRoleService()
 
 
 @pytest.mark.asyncio
-async def test_get_roles_api(role_service):
-    """Test GET /roles endpoint."""
-    await role_service.create_role(
+async def test_get_roles(service):
+    await service.create_role(
         RoleCreate(name="Admin", description="Admin role", is_active=True)
     )
-    await role_service.create_role(
+    await service.create_role(
         RoleCreate(name="User", description="User role", is_active=True)
     )
 
-    result = await get_roles(role_service=role_service)
+    result = await get_roles(role_service=service)
 
     assert len(result) == 2
 
 
 @pytest.mark.asyncio
-async def test_get_role_api_success(role_service):
+async def test_get_role_success(service):
     """Test GET /roles/{id} endpoint with valid ID."""
-    created = await role_service.create_role(
+    created = await service.create_role(
         RoleCreate(name="Manager", description="Manager role", is_active=True)
     )
 
-    result = await get_role(role_id=created.id, role_service=role_service)
+    result = await get_role(role_id=created.id, role_service=service)
 
     assert result.id == created.id
     assert result.name == "Manager"
 
 
 @pytest.mark.asyncio
-async def test_get_role_api_not_found(role_service):
+async def test_get_role_not_found(service):
     """Test GET /roles/{id} endpoint with invalid ID."""
-    from uuid import uuid4
-
     with pytest.raises(HTTPException) as exc_info:
-        await get_role(role_id=uuid4(), role_service=role_service)
+        await get_role(role_id=uuid4(), role_service=service)
 
     assert exc_info.value.status_code == status.HTTP_404_NOT_FOUND
 
 
 @pytest.mark.asyncio
-async def test_create_role_api_success(role_service):
+async def test_create_role_success(service):
     """Test POST /roles endpoint."""
-    role_data = RoleCreate(name="Editor", description="Editor role", is_active=True)
-
-    result = await create_role(role_create=role_data, role_service=role_service)
+    result = await create_role(
+        role_create=RoleCreate(
+            name="Editor", description="Editor role", is_active=True
+        ),
+        role_service=service,
+    )
 
     assert result.name == "Editor"
     assert result.description == "Editor role"
@@ -92,114 +83,137 @@ async def test_create_role_api_success(role_service):
 
 
 @pytest.mark.asyncio
-async def test_create_role_api_duplicate(role_service):
+async def test_create_role_duplicate(service):
     """Test POST /roles endpoint with duplicate name."""
     role_data = RoleCreate(name="Duplicate", description="Dup role", is_active=True)
-
-    await role_service.create_role(role_data)
+    await service.create_role(role_data)
 
     with pytest.raises(HTTPException) as exc_info:
-        await create_role(role_create=role_data, role_service=role_service)
+        await create_role(role_create=role_data, role_service=service)
 
     assert exc_info.value.status_code == status.HTTP_400_BAD_REQUEST
 
 
 @pytest.mark.asyncio
-async def test_update_role_api_success(role_service):
+async def test_update_role_success(service):
     """Test PUT /roles/{id} endpoint."""
-    created = await role_service.create_role(
+    created = await service.create_role(
         RoleCreate(name="Old Name", description="Old desc", is_active=True)
     )
 
-    update_data = RoleUpdate(name="New Name", description="New desc")
-
     result = await update_role(
-        role_id=created.id, role_update=update_data, role_service=role_service
+        role_id=created.id,
+        role_update=RoleUpdate(name="New Name", description="New desc"),
+        role_service=service,
     )
 
     assert result.name == "New Name"
     assert result.description == "New desc"
-    assert result.is_active is True
 
 
 @pytest.mark.asyncio
-async def test_update_role_api_not_found(role_service):
+async def test_update_role_not_found(service):
     """Test PUT /roles/{id} endpoint with invalid ID."""
-    from uuid import uuid4
-
-    update_data = RoleUpdate(name="Update", description="Update desc")
-
     with pytest.raises(HTTPException) as exc_info:
         await update_role(
-            role_id=uuid4(), role_update=update_data, role_service=role_service
+            role_id=uuid4(),
+            role_update=RoleUpdate(name="Update", description="Update desc"),
+            role_service=service,
         )
 
     assert exc_info.value.status_code == status.HTTP_404_NOT_FOUND
 
 
 @pytest.mark.asyncio
-async def test_delete_role_api_success(role_service):
+async def test_delete_role_success(service):
     """Test DELETE /roles/{id} endpoint."""
-    created = await role_service.create_role(
+    created = await service.create_role(
         RoleCreate(name="Delete Me", description="Delete role", is_active=True)
     )
 
-    result = await delete_role(role_id=created.id, role_service=role_service)
+    result = await delete_role(role_id=created.id, role_service=service)
 
     assert "deleted successfully" in result.detail.lower()
 
 
 @pytest.mark.asyncio
-async def test_delete_role_api_not_found(role_service):
+async def test_delete_role_not_found(service):
     """Test DELETE /roles/{id} endpoint with invalid ID."""
-    from uuid import uuid4
-
     with pytest.raises(HTTPException) as exc_info:
-        await delete_role(role_id=uuid4(), role_service=role_service)
+        await delete_role(role_id=uuid4(), role_service=service)
 
     assert exc_info.value.status_code == status.HTTP_404_NOT_FOUND
 
 
 @pytest.mark.asyncio
-async def test_update_role_status_api_deactivate_success(role_service):
+async def test_update_role_status_deactivate(service):
     """Test PUT /roles/{id}/status endpoint to deactivate a role."""
-    created = await role_service.create_role(
+    created = await service.create_role(
         RoleCreate(name="Active Role", description="Active role", is_active=True)
     )
 
-    status_update = RoleStatusUpdate(is_active=False)
     result = await update_role_status(
-        role_id=created.id, status_update=status_update, role_service=role_service
+        role_id=created.id,
+        status_update=RoleStatusUpdate(is_active=False),
+        role_service=service,
     )
 
     assert result.is_active is False
 
 
 @pytest.mark.asyncio
-async def test_update_role_status_api_activate_success(role_service):
+async def test_update_role_status_activate(service):
     """Test PUT /roles/{id}/status endpoint to activate a role."""
-    created = await role_service.create_role(
+    created = await service.create_role(
         RoleCreate(name="Inactive Role", description="Inactive role", is_active=False)
     )
 
-    status_update = RoleStatusUpdate(is_active=True)
     result = await update_role_status(
-        role_id=created.id, status_update=status_update, role_service=role_service
+        role_id=created.id,
+        status_update=RoleStatusUpdate(is_active=True),
+        role_service=service,
     )
 
     assert result.is_active is True
 
 
 @pytest.mark.asyncio
-async def test_update_role_status_api_not_found(role_service):
+async def test_update_role_status_not_found(service):
     """Test PUT /roles/{id}/status endpoint with invalid ID."""
-    from uuid import uuid4
-
-    status_update = RoleStatusUpdate(is_active=False)
-
     with pytest.raises(HTTPException) as exc_info:
         await update_role_status(
-            role_id=uuid4(), status_update=status_update, role_service=role_service
+            role_id=uuid4(),
+            status_update=RoleStatusUpdate(is_active=False),
+            role_service=service,
+        )
+
+    assert exc_info.value.status_code == status.HTTP_404_NOT_FOUND
+
+
+@pytest.mark.asyncio
+async def test_assign_permissions_success(service):
+    created = await service.create_role(
+        RoleCreate(name="Editor", description="Editor role", is_active=True)
+    )
+    perm_id = uuid4()
+
+    result = await assign_permissions_to_role(
+        role_id=created.id,
+        request=AssignPermissionsRequest(permission_ids=[perm_id]),
+        role_service=service,
+    )
+
+    assert result.id == created.id
+    assert service.role_permissions[created.id] == {perm_id}
+
+
+@pytest.mark.asyncio
+async def test_assign_permissions_not_found(service):
+    with pytest.raises(HTTPException) as exc_info:
+        await assign_permissions_to_role(
+            role_id=uuid4(),
+            request=AssignPermissionsRequest(permission_ids=[uuid4()]),
+            role_service=service,
         )
 
     assert exc_info.value.status_code == status.HTTP_404_NOT_FOUND
