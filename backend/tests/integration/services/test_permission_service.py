@@ -13,104 +13,85 @@ from unit_of_work.uow import UnitOfWorkImpl  # noqa: E402
 
 
 @pytest.fixture
-def permission_service():
-    """Provide permission service with real database."""
+def service():
     uow = UnitOfWorkImpl(session_factory=default_session_factory)
     return PermissionServiceImpl(unit_of_work=uow)
 
 
+async def _create_role(permission_codes: list[str]) -> Role:
+    async with default_session_factory() as db:
+        result = await db.execute(
+            select(Permission).where(Permission.code.in_(permission_codes))
+        )
+        permissions = list(result.scalars().all())
+        role = Role(name=f"Role {permission_codes}", is_active=True)
+        role.permissions = permissions
+        db.add(role)
+        await db.commit()
+        return role
+
+
+async def _deactivate_permission(code: str) -> None:
+    async with default_session_factory() as db:
+        result = await db.execute(select(Permission).where(Permission.code == code))
+        permission = result.scalar_one()
+        permission.is_active = False
+        await db.commit()
+
+
 @pytest.mark.asyncio
-async def test_get_all_permissions_returns_seeded_data(permission_service):
-    """Test that get_all_permissions returns all seeded permissions from database."""
-    result = await permission_service.get_all_permissions()
+async def test_get_all_permissions_returns_seeded_data(service):
+    result = await service.get_all_permissions()
 
     assert len(result) > 0
-    assert all(isinstance(p, Permission) for p in result)
-
-    permission_codes = {p.code for p in result}
-    assert "permissions.list" in permission_codes
-    assert "roles.list" in permission_codes
-    assert "users.list" in permission_codes
-    assert "logged_histories.view" in permission_codes
+    codes = {p.code for p in result}
+    assert {
+        "permissions.list",
+        "roles.list",
+        "users.list",
+        "logged_histories.view",
+    }.issubset(codes)
 
 
 @pytest.mark.asyncio
-async def test_get_all_permissions_excludes_inactive(permission_service):
-    """Test that inactive permissions are excluded from results."""
-    permissions = await permission_service.get_all_permissions()
-    async with default_session_factory() as session:
-        result = await session.execute(
-            select(Permission).where(Permission.code == "permissions.list")
-        )
-        permission = result.scalar_one()
+async def test_get_all_permissions_excludes_inactive(service):
+    await _deactivate_permission("permissions.list")
 
-        permission.is_active = False
-        await session.commit()
+    result = await service.get_all_permissions()
 
-    result = await permission_service.get_all_permissions()
-    assert len(result) == len(permissions) - 1
     assert all(p.code != "permissions.list" for p in result)
 
 
 @pytest.mark.asyncio
-async def test_get_permissions_by_role_id_returns_role_permissions(permission_service):
-    """Test retrieving permissions assigned to a specific role."""
-    async with default_session_factory() as session:
-        result = await session.execute(
-            select(Permission).where(
-                Permission.code.in_(["roles.list", "roles.view", "roles.create"])
-            )
-        )
-        permissions = list(result.scalars().all())
+async def test_get_permissions_by_role_id_returns_assigned(service):
+    role = await _create_role(["roles.list", "roles.view", "roles.create"])
 
-        role = Role(name="Test Manager", is_active=True)
-        role.permissions = permissions
-        session.add(role)
-        await session.commit()
-        role_id = role.id
+    result = await service.get_permissions_by_role_id(role.id)
 
-    result = await permission_service.get_permissions_by_role_id(role_id)
-
-    assert len(result) == 3
-    permission_codes = {p.code for p in result}
-    assert permission_codes == {"roles.list", "roles.view", "roles.create"}
+    assert {p.code for p in result} == {"roles.list", "roles.view", "roles.create"}
 
 
 @pytest.mark.asyncio
-async def test_get_permissions_by_role_id_empty_role(permission_service):
-    """Test retrieving permissions for a role with no permissions assigned."""
-    async with default_session_factory() as session:
-        role = Role(name="Empty Role", is_active=True)
-        session.add(role)
-        await session.commit()
-        role_id = role.id
-
-    result = await permission_service.get_permissions_by_role_id(role_id)
-
-    assert len(result) == 0
-
-
-@pytest.mark.asyncio
-async def test_get_permissions_by_role_id_excludes_inactive_permissions(
-    permission_service,
+async def test_get_permissions_by_role_id_returns_empty_for_role_with_no_permissions(
+    service,
 ):
-    """Test that inactive permissions are excluded from role permissions."""
-    async with default_session_factory() as session:
-        result = await session.execute(
-            select(Permission).where(Permission.code.in_(["users.list", "users.view"]))
-        )
-        permissions = list(result.scalars().all())
-
-        role = Role(name="User Viewer", is_active=True)
-        role.permissions = permissions
-        session.add(role)
-        await session.commit()
+    async with default_session_factory() as db:
+        role = Role(name="Empty Role", is_active=True)
+        db.add(role)
+        await db.commit()
         role_id = role.id
 
-        permissions[0].is_active = False
-        await session.commit()
+    result = await service.get_permissions_by_role_id(role_id)
 
-    result = await permission_service.get_permissions_by_role_id(role_id)
+    assert result == []
+
+
+@pytest.mark.asyncio
+async def test_get_permissions_by_role_id_excludes_inactive(service):
+    role = await _create_role(["users.list", "users.view"])
+    await _deactivate_permission("users.list")
+
+    result = await service.get_permissions_by_role_id(role.id)
 
     assert len(result) == 1
     assert result[0].code == "users.view"

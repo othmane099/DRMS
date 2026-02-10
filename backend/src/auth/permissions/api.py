@@ -28,4 +28,4 @@ async def get_permissions(
     response = await permission_service.get_all_permissions()
     if isinstance(response, Error):
         raise HTTPException(status_code=response.code, detail=response.detail)
-    return response
+    return [PermissionResponse.model_validate(r) for r in response]

@@ -1,4 +1,3 @@
-from typing import Any
 from uuid import UUID
 
 from pydantic import UUID4
@@ -9,27 +8,34 @@ from auth.permissions.service import PermissionService
 
 
 class FakePermissionRepository(PermissionRepository):
-    def __init__(self, session: Any = None):
-        self.session = session
+    def __init__(self):
         self.permissions: dict[UUID, Permission] = {}
+        self.role_permissions: dict[UUID, set[UUID]] = {}
 
     async def get_all_permissions(self) -> list[Permission]:
         return [p for p in self.permissions.values() if p.is_active]
 
     async def get_permissions_by_role_id(self, role_id: UUID4) -> list[Permission]:
-        # Simplified - in real implementation would check role_permissions table
-        return [p for p in self.permissions.values() if p.is_active]
+        permission_ids = self.role_permissions.get(UUID(str(role_id)), set())
+        return [
+            p
+            for p in self.permissions.values()
+            if p.is_active and UUID(str(p.id)) in permission_ids
+        ]
 
 
 class FakePermissionService(PermissionService):
     def __init__(self):
         self.permissions: dict[UUID, Permission] = {}
+        self.role_permissions: dict[UUID, set[UUID]] = {}
 
     async def get_all_permissions(self) -> list[Permission]:
         return [p for p in self.permissions.values() if p.is_active]
 
     async def get_permissions_by_role_id(self, role_id: UUID4) -> list[Permission]:
-        return [p for p in self.permissions.values() if p.is_active]
-
-    async def get_permission_count_by_role_id(self, role_id: UUID4) -> int:
-        return len([p for p in self.permissions.values() if p.is_active])
+        permission_ids = self.role_permissions.get(UUID(str(role_id)), set())
+        return [
+            p
+            for p in self.permissions.values()
+            if p.is_active and UUID(str(p.id)) in permission_ids
+        ]

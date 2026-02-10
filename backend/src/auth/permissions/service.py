@@ -15,8 +15,6 @@ class PermissionService(Protocol):
 
     async def get_permissions_by_role_id(self, role_id: UUID4) -> list[Permission]: ...
 
-    async def get_permission_count_by_role_id(self, role_id: UUID4) -> int: ...
-
 
 class PermissionServiceImpl(PermissionService):
     @inject
@@ -32,11 +30,3 @@ class PermissionServiceImpl(PermissionService):
         logger.debug("Fetching permissions for role (role_id=%s)", role_id)
         async with self._unit_of_work as uow:
             return await uow.permission_repository.get_permissions_by_role_id(role_id)
-
-    async def get_permission_count_by_role_id(self, role_id: UUID4) -> int:
-        logger.debug("Counting permissions for role (role_id=%s)", role_id)
-        async with self._unit_of_work as uow:
-            permissions = await uow.permission_repository.get_permissions_by_role_id(
-                role_id
-            )
-            return len(permissions)
