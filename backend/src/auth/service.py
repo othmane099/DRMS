@@ -12,6 +12,7 @@ from starlette import status
 from auth.logged_histories.schemas import LoggedHistoryCreate
 from auth.models import LoggedHistoryType
 from auth.schemas import LoginRequest, LoginResponse
+from auth.users.schemas import UserResponse
 from schemas import Error
 from unit_of_work.uow import UnitOfWork
 
@@ -19,7 +20,7 @@ logger = logging.getLogger(__name__)
 
 
 class AuthService(Protocol):
-    async def authenticate(self, body: LoginRequest, ip_address: str | None = None) -> Error | LoginResponse:...
+    async def authenticate(self, body: LoginRequest, ip_address: str | None = None) -> Error | LoginResponse: ...
 
 
 class AuthServiceImpl(AuthService):
@@ -132,5 +133,7 @@ class AuthServiceImpl(AuthService):
             await uow.commit()
             logger.info(f"User logged in successfully: {user.username} (ID: {user.id})")
             return LoginResponse(
-                token=session.token, user=user, expires_in=session.expires_in
+                token=session.token,
+                user=UserResponse.model_validate(user),
+                expires_in=session.expires_in
             )
