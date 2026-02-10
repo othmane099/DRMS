@@ -10,7 +10,7 @@ sys.path.append(f"{os.getcwd()}/src")
 from auth.logged_histories.service import LoggedHistoryServiceImpl
 from auth.permissions.service import PermissionServiceImpl
 from auth.roles.service import RoleServiceImpl
-from auth.service import AuthService
+from auth.service import AuthServiceImpl
 from auth.sessions.service import SessionServiceImpl
 from auth.users.service import UserServiceImpl
 from configuration.categories.service import CategoryServiceImpl
@@ -58,7 +58,7 @@ class Container(containers.DeclarativeContainer):
         unit_of_work=unit_of_work,
     )
     auth_service = providers.Factory(
-        AuthService,
+        AuthServiceImpl,
         unit_of_work=unit_of_work,
     )
     stage_service = providers.Factory(

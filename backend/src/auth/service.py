@@ -1,6 +1,7 @@
 import logging
 import secrets
 from datetime import datetime, timedelta
+from typing import Protocol
 
 import pytz
 from dependency_injector.wiring import Provide, inject
@@ -17,7 +18,11 @@ from unit_of_work.uow import UnitOfWork
 logger = logging.getLogger(__name__)
 
 
-class AuthService:
+class AuthService(Protocol):
+    async def authenticate(self, body: LoginRequest, ip_address: str | None = None): ...
+
+
+class AuthServiceImpl(AuthService):
     @inject
     def __init__(self, unit_of_work: UnitOfWork = Provide["unit_of_work"]):
         self._unit_of_work = unit_of_work
@@ -123,8 +128,8 @@ class AuthService:
 
             user.last_login = datetime.now()
             session = await self._create_user_session(uow, user.id)
-            await uow.commit()
             await self._log_successful_login(uow, user.id, body.username, ip_address)
+            await uow.commit()
             logger.info(f"User logged in successfully: {user.username} (ID: {user.id})")
             return LoginResponse(
                 token=session.token, user=user, expires_in=session.expires_in

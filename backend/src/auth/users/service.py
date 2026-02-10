@@ -116,25 +116,6 @@ class UserServiceImpl(UserService):
             active,
         )
 
-        if page < 1:
-            logger.warning(
-                "Invalid pagination request: page must be >= 1 (page=%s)", page
-            )
-            return Error(
-                detail="Page must be greater than or equal to 1",
-                code=status.HTTP_400_BAD_REQUEST,
-            )
-        if page_size < 1:
-            logger.warning(
-                "Invalid pagination request: page_size must be >= 1 (page_size=%s)",
-                page_size,
-            )
-            return Error(
-                detail="Page size must be greater than or equal to 1",
-                code=status.HTTP_400_BAD_REQUEST,
-            )
-
-        # Convert UserStatus enum to boolean for database query
         active_bool: bool | None = None
         if active is not None:
             active_bool = active == UserStatus.active
