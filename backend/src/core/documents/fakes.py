@@ -76,7 +76,7 @@ class FakeDocumentRepository(DocumentRepository):
             first_name="Mock",
             last_name="Creator",
             username="mockcreator",
-            password="hashed",
+            password="hashed",  # nosec B106  # nosec B106
             is_active=True,
         )
         document.assigned_user = User(
@@ -84,7 +84,7 @@ class FakeDocumentRepository(DocumentRepository):
             first_name="Mock",
             last_name="Assigned",
             username="mockassigned",
-            password="hashed",
+            password="hashed",  # nosec B106  # nosec B106
             is_active=True,
         )
         # Handle tags - create mock Tag objects for the provided tag_ids
@@ -171,7 +171,7 @@ class FakeDocumentRepository(DocumentRepository):
             first_name="Mock",
             last_name="Assigned",
             username="mockassigned",
-            password="hashed",
+            password="hashed",  # nosec B106
             is_active=True,
         )
 
@@ -361,7 +361,7 @@ class FakeDocumentRepository(DocumentRepository):
             first_name="Mock",
             last_name="User",
             username="mockuser",
-            password="hashed",
+            password="hashed",  # nosec B106
             is_active=True,
         )
         self.comments[document_comment.id] = document_comment
@@ -401,7 +401,7 @@ class FakeDocumentRepository(DocumentRepository):
             first_name="Mock",
             last_name="User",
             username="mockuser",
-            password="hashed",
+            password="hashed",  # nosec B106
             is_active=True,
         )
         self.shares[share.id] = share
@@ -460,7 +460,7 @@ class FakeDocumentRepository(DocumentRepository):
             first_name="Mock",
             last_name="Creator",
             username="mockcreator",
-            password="hashed",
+            password="hashed",  # nosec B106
             is_active=True,
         )
         reminder.document = self.documents.get(document_id)  # type: ignore
@@ -473,7 +473,7 @@ class FakeDocumentRepository(DocumentRepository):
                 first_name="Mock",
                 last_name="User",
                 username=f"mockuser-{user_id}",
-                password="hashed",
+                password="hashed",  # nosec B106
                 is_active=True,
             )
             reminder.assigned_users.append(user)
@@ -510,7 +510,7 @@ class FakeDocumentRepository(DocumentRepository):
                 first_name="Mock",
                 last_name="User",
                 username=f"mockuser-{user_id}",
-                password="hashed",
+                password="hashed",  # nosec B106
                 is_active=True,
             )
             reminder.assigned_users.append(user)
@@ -758,7 +758,7 @@ class FakeDocumentService(DocumentService):
             first_name="Mock",
             last_name="User",
             username="mockuser",
-            password="hashed",
+            password="hashed",  # nosec B106
             is_active=True,
         )
         document.assigned_user = User(
@@ -766,7 +766,7 @@ class FakeDocumentService(DocumentService):
             first_name="Mock",
             last_name="Assigned",
             username="mockassigned",
-            password="hashed",
+            password="hashed",  # nosec B106
             is_active=True,
         )
         # Handle tags - create mock Tag objects for the provided tag_ids
@@ -842,7 +842,7 @@ class FakeDocumentService(DocumentService):
             first_name="Mock",
             last_name="Assigned",
             username="mockassigned",
-            password="hashed",
+            password="hashed",  # nosec B106
             is_active=True,
         )
 
@@ -1005,7 +1005,7 @@ class FakeDocumentService(DocumentService):
             first_name="Mock",
             last_name="User",
             username="mockuser",
-            password="hashed",
+            password="hashed",  # nosec B106
             is_active=True,
         )
         self.comments[comment.id] = comment
@@ -1108,7 +1108,7 @@ class FakeDocumentService(DocumentService):
                 first_name="Mock",
                 last_name="User",
                 username="mockuser",
-                password="hashed",
+                password="hashed",  # nosec B106
                 is_active=True,
             )
             self.shares[share.id] = share
@@ -1344,7 +1344,7 @@ class FakeDocumentService(DocumentService):
             first_name="Mock",
             last_name="Creator",
             username="mockcreator",
-            password="hashed",
+            password="hashed",  # nosec B106
             is_active=True,
         )
         reminder.document = document
@@ -1357,7 +1357,7 @@ class FakeDocumentService(DocumentService):
                 first_name="Mock",
                 last_name="User",
                 username=f"mockuser-{user_id}",
-                password="hashed",
+                password="hashed",  # nosec B106
                 is_active=True,
             )
             reminder.assigned_users.append(user)
@@ -1427,7 +1427,7 @@ class FakeDocumentService(DocumentService):
                 first_name="Mock",
                 last_name="User",
                 username=f"mockuser-{user_id}",
-                password="hashed",
+                password="hashed",  # nosec B106
                 is_active=True,
             )
             reminder.assigned_users.append(user)

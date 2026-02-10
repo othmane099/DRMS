@@ -50,7 +50,7 @@ class FakeReminderRepository(ReminderRepository):
             first_name="Mock",
             last_name="Creator",
             username="mockcreator",
-            password="hashed",
+            password="hashed",  # nosec B106
             is_active=True,
         )
         reminder.document = self.documents.get(document_id)  # type: ignore
@@ -63,7 +63,7 @@ class FakeReminderRepository(ReminderRepository):
                 first_name="Mock",
                 last_name="User",
                 username=f"mockuser-{user_id}",
-                password="hashed",
+                password="hashed",  # nosec B106
                 is_active=True,
             )
             reminder.assigned_users.append(user)
@@ -100,7 +100,7 @@ class FakeReminderRepository(ReminderRepository):
                 first_name="Mock",
                 last_name="User",
                 username=f"mockuser-{user_id}",
-                password="hashed",
+                password="hashed",  # nosec B106
                 is_active=True,
             )
             reminder.assigned_users.append(user)
@@ -274,7 +274,7 @@ class FakeReminderService(ReminderService):
                 first_name="Mock",
                 last_name="User",
                 username=f"mockuser-{user_id}",
-                password="hashed",
+                password="hashed",  # nosec B106
                 is_active=True,
             )
             reminder.assigned_users.append(user)
@@ -407,7 +407,7 @@ class FakeReminderService(ReminderService):
             first_name="Mock",
             last_name="Creator",
             username="mockcreator",
-            password="hashed",
+            password="hashed",  # nosec B106
             is_active=True,
         )
         reminder.document = document
@@ -420,7 +420,7 @@ class FakeReminderService(ReminderService):
                 first_name="Mock",
                 last_name="User",
                 username=f"mockuser-{user_id_assign}",
-                password="hashed",
+                password="hashed",  # nosec B106
                 is_active=True,
             )
             reminder.assigned_users.append(user)
