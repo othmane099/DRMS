@@ -19,7 +19,7 @@ logger = logging.getLogger(__name__)
 
 
 class AuthService(Protocol):
-    async def authenticate(self, body: LoginRequest, ip_address: str | None = None): ...
+    async def authenticate(self, body: LoginRequest, ip_address: str | None = None) -> Error | LoginResponse:...
 
 
 class AuthServiceImpl(AuthService):
@@ -83,7 +83,7 @@ class AuthServiceImpl(AuthService):
             expired_at=expired_at,
         )
 
-    async def authenticate(self, body: LoginRequest, ip_address: str | None = None):
+    async def authenticate(self, body: LoginRequest, ip_address: str | None = None) -> Error | LoginResponse:
         normalized_username = self._normalize_username(body.username)
         logger.debug(
             "Login attempt for username=%s (normalized=%s)",

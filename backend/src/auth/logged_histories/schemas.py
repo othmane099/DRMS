@@ -10,7 +10,7 @@ class LoggedHistoryCreate(BaseModel):
     user_id: UUID4 | None = None
     ip: Annotated[str, Field(max_length=255)] | None = None
     date: datetime | None = None
-    details: dict[str, Any] | None = None
+    details: dict[str, Any] | None
     type: LoggedHistoryType | None = None
 
 
