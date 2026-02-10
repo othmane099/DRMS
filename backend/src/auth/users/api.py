@@ -64,7 +64,8 @@ async def get_users(
             )
         )
     ],
-    description="Get users for assignment (excludes current user and superusers). Required permission: documents.create | documents.create_my | reminders.create | reminders.create_my",
+    description="Get users for assignment (excludes current user and superusers)."
+    " Required permission: documents.create | documents.create_my | reminders.create | reminders.create_my",
 )
 @inject
 async def get_users_for_assignment(
@@ -88,7 +89,7 @@ async def get_user(
     response = await user_service.get_user_by_id(user_id)
     if isinstance(response, Error):
         raise HTTPException(status_code=response.code, detail=response.detail)
-    return response
+    return UserResponseWithPrograms.model_validate(response)
 
 
 @router.post(
@@ -105,7 +106,7 @@ async def create_user(
     response = await user_service.create_user(user_create)
     if isinstance(response, Error):
         raise HTTPException(status_code=response.code, detail=response.detail)
-    return response
+    return UserResponse.model_validate(response)
 
 
 @router.put(
@@ -123,7 +124,7 @@ async def update_user(
     response = await user_service.update_user(user_id, user_update)
     if isinstance(response, Error):
         raise HTTPException(status_code=response.code, detail=response.detail)
-    return response
+    return UserResponse.model_validate(response)
 
 
 @router.delete(
@@ -157,7 +158,7 @@ async def update_user_status(
     response = await user_service.update_user_status(user_id, status_update)
     if isinstance(response, Error):
         raise HTTPException(status_code=response.code, detail=response.detail)
-    return response
+    return UserResponse.model_validate(response)
 
 
 @router.put(
@@ -175,7 +176,7 @@ async def update_user_role(
     response = await user_service.update_user_role(user_id, role_update)
     if isinstance(response, Error):
         raise HTTPException(status_code=response.code, detail=response.detail)
-    return response
+    return UserResponse.model_validate(response)
 
 
 @router.post(

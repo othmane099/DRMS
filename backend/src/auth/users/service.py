@@ -41,28 +41,12 @@ class UserService(Protocol):
         active: UserStatus | None = None,
     ) -> PaginatedUserResponse | Error: ...
 
-    async def get_all_users(self, uow: UnitOfWork) -> list[User]: ...
-
-    async def get_all_users_except_superuser(self, uow: UnitOfWork) -> list[User]: ...
-
     async def get_users_for_assignment(self, current_user_id: UUID) -> list[User]: ...
-
-    async def count_users(self) -> int: ...
-
-    async def count_users_by_role_id(self, role_id: UUID4) -> int: ...
 
     async def get_user_by_id(self, user_id: UUID) -> User | Error: ...
 
     async def get_user_by_username(
         self, username: str, uow: UnitOfWork | None = None, exclude_deleted: bool = True
-    ) -> User | Error: ...
-
-    async def get_user_by_email(
-        self, email: str, exclude_deleted: bool = True
-    ) -> User | Error: ...
-
-    async def get_user_by_phone(
-        self, phone: str, exclude_deleted: bool = True
     ) -> User | Error: ...
 
     async def create_user(self, user_create: UserCreate) -> User | Error: ...
@@ -154,14 +138,6 @@ class UserServiceImpl(UserService):
             has_previous=page > 1,
         )
 
-    async def get_all_users(self, uow: UnitOfWork) -> list[User]:
-        logger.debug("Fetching all users (shared UoW)")
-        return await uow.user_repository.get_all_users()
-
-    async def get_all_users_except_superuser(self, uow: UnitOfWork) -> list[User]:
-        logger.debug("Fetching all users except superuser")
-        return await uow.user_repository.get_all_user_except_superuser()
-
     async def get_users_for_assignment(self, current_user_id: UUID) -> list[User]:
         logger.debug(
             "Fetching users for assignment (excluding current user and superusers)"
@@ -172,26 +148,6 @@ class UserServiceImpl(UserService):
 
         logger.debug("Users for assignment fetched (count=%s)", len(users))
         return users
-
-    async def count_users(self) -> int:
-        logger.debug("Counting users")
-
-        async with self._unit_of_work as uow:
-            count = await uow.user_repository.count_users()
-
-        logger.debug("User count resolved (count=%s)", count)
-        return count
-
-    async def count_users_by_role_id(self, role_id: UUID4) -> int:
-        logger.debug("Counting users for role (role_id=%s)", role_id)
-
-        async with self._unit_of_work as uow:
-            count = await uow.user_repository.count_users_by_role_id(role_id)
-
-        logger.debug(
-            "User count for role resolved (role_id=%s, count=%s)", role_id, count
-        )
-        return count
 
     async def get_user_by_id(
         self, user_id: UUID, uow: UnitOfWork | None = None

@@ -1,12 +1,11 @@
 from datetime import datetime
-from typing import Any
 from uuid import UUID, uuid4
 
 from passlib.handlers.pbkdf2 import pbkdf2_sha256
 from pydantic import UUID4
 from starlette import status
 
-from auth.models import Permission, User
+from auth.models import Permission, Role, User
 from auth.users.repository import UserRepository
 from auth.users.schemas import (
     BulkActionResponse,
@@ -28,8 +27,7 @@ from unit_of_work.uow import UnitOfWork
 
 
 class FakeUserRepository(UserRepository):
-    def __init__(self, session: Any = None):
-        self.session = session
+    def __init__(self):
         self.users: dict[UUID, User] = {}
         self.permissions: dict[UUID, Permission] = {}
 
@@ -66,15 +64,16 @@ class FakeUserRepository(UserRepository):
 
         return sorted(active_users, key=lambda x: x.username)[skip : skip + limit]
 
-    async def get_all_users(self) -> list[User]:
-        return [u for u in self.users.values() if u.deleted_at is None]
-
-    async def get_all_user_except_superuser(self) -> list[User]:
-        return [
+    async def get_users_for_assignment(self, current_user_id: UUID4) -> list[User]:
+        users = [
             u
             for u in self.users.values()
-            if u.deleted_at is None and not u.is_superuser
+            if u.deleted_at is None
+            and not u.is_superuser
+            and u.id != current_user_id
+            and u.is_active
         ]
+        return sorted(users, key=lambda u: (u.first_name or "", u.last_name or ""))
 
     async def get_user_by_id(self, user_id: UUID4) -> User | None:
         user = self.users.get(user_id)
@@ -181,13 +180,14 @@ class FakeUserRepository(UserRepository):
         user.custom_permissions = permissions
 
     async def get_permissions_by_codes(self, codes: list[str]) -> list[Permission]:
-        return [p for p in self.permissions.values() if p.code in codes]
+        return [p for p in self.permissions.values() if p.code in codes and p.is_active]
 
 
 class FakeUserService(UserService):
     def __init__(self) -> None:
         self.users: dict[UUID, User] = {}
         self.permissions: dict[UUID, Permission] = {}
+        self.roles: dict[UUID, Role] = {}
 
     async def get_all_users_paginated(
         self,
@@ -208,7 +208,6 @@ class FakeUserService(UserService):
                 code=status.HTTP_400_BAD_REQUEST,
             )
 
-        # Convert UserStatus enum to boolean for filtering
         active_bool: bool | None = None
         if active is not None:
             active_bool = active == UserStatus.active
@@ -254,42 +253,27 @@ class FakeUserService(UserService):
             has_previous=page > 1,
         )
 
-    async def get_all_users(self, uow: UnitOfWork) -> list[User]:
-        return [u for u in self.users.values() if u.deleted_at is None]
-
-    async def get_all_users_except_superuser(self, uow: UnitOfWork) -> list[User]:
-        return [
+    async def get_users_for_assignment(self, current_user_id: UUID) -> list[User]:
+        users = [
             u
             for u in self.users.values()
-            if u.deleted_at is None and not u.is_superuser
+            if u.deleted_at is None
+            and not u.is_superuser
+            and u.id != current_user_id
+            and u.is_active
         ]
+        return sorted(users, key=lambda u: (u.first_name or "", u.last_name or ""))
 
-    async def count_users(self) -> int:
-        return len(
-            [
-                u
-                for u in self.users.values()
-                if u.deleted_at is None and not u.is_superuser
-            ]
-        )
-
-    async def count_users_by_role_id(self, role_id: UUID4) -> int:
-        return len(
-            [
-                u
-                for u in self.users.values()
-                if u.role_id == role_id and u.is_active and not u.is_superuser
-            ]
-        )
-
-    async def get_user_by_id(self, user_id: UUID) -> User | Error:
+    async def get_user_by_id(
+        self, user_id: UUID, uow: UnitOfWork | None = None
+    ) -> User | Error:
         user = self.users.get(user_id)
         if user and user.deleted_at is None and not user.is_superuser:
             return user
         return Error(detail="User not found", code=status.HTTP_404_NOT_FOUND)
 
     async def get_user_by_username(
-        self, username: str, uow=None, exclude_deleted: bool = True
+        self, username: str, uow: UnitOfWork | None = None, exclude_deleted: bool = True
     ) -> User | Error:
         for user in self.users.values():
             if user.username == username:
@@ -452,6 +436,10 @@ class FakeUserService(UserService):
         if not user or user.deleted_at is not None or user.is_superuser:
             return Error(detail="User not found", code=status.HTTP_404_NOT_FOUND)
 
+        if role_update.role_id:
+            if role_update.role_id not in self.roles:
+                return Error(detail="Role not found", code=status.HTTP_404_NOT_FOUND)
+
         user.role_id = role_update.role_id
         return user
 
@@ -484,7 +472,12 @@ class FakeUserService(UserService):
                     failure_count += 1
                     details.append(f"User {user_id}: role_id parameter required")
                     continue
-                user.role_id = UUID(bulk_action.parameters["role_id"])
+                role_id = UUID(bulk_action.parameters["role_id"])
+                if role_id not in self.roles:
+                    failure_count += 1
+                    details.append(f"User {user_id}: role not found")
+                    continue
+                user.role_id = role_id
                 success_count += 1
 
             elif bulk_action.action == "activate":
@@ -513,6 +506,13 @@ class FakeUserService(UserService):
             return Error(detail="User not found", code=status.HTTP_404_NOT_FOUND)
 
         role_permissions: list[PermissionBasicResponse] = []
+        if user.role_id and user.role_id in self.roles:
+            role = self.roles[user.role_id]
+            role_permissions = [
+                PermissionBasicResponse.model_validate(p)
+                for p in getattr(role, "permissions", [])
+            ]
+
         custom_permissions = [
             PermissionBasicResponse.model_validate(p)
             for p in getattr(user, "custom_permissions", [])
@@ -535,16 +535,24 @@ class FakeUserService(UserService):
         new_permissions = []
         for code in permissions_update.permissions:
             for p in self.permissions.values():
-                if p.code == code:
+                if p.code == code and p.is_active:
                     new_permissions.append(p)
                     break
 
         user.custom_permissions = new_permissions
 
+        role_permissions: list[PermissionBasicResponse] = []
+        if user.role_id and user.role_id in self.roles:
+            role = self.roles[user.role_id]
+            role_permissions = [
+                PermissionBasicResponse.model_validate(p)
+                for p in getattr(role, "permissions", [])
+            ]
+
         return UserPermissionsResponse(
             id=user.id,
             username=user.username,
-            role_permissions=[],
+            role_permissions=role_permissions,
             custom_permissions=[
                 PermissionBasicResponse.model_validate(p) for p in new_permissions
             ],

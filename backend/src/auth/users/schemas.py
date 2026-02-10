@@ -25,11 +25,11 @@ class UserCreate(BaseModel):
 
 
 class UserUpdate(BaseModel):
-    first_name: str
-    last_name: str
-    email: EmailStr | None = None
-    phone: str | None = None
-    username: str
+    first_name: Annotated[str, Field(max_length=255)]
+    last_name: Annotated[str, Field(max_length=255)]
+    email: Annotated[EmailStr, Field(max_length=255)] | None = None
+    phone: Annotated[str, Field(max_length=20)] | None = None
+    username: Annotated[str, Field(max_length=50)]
     is_active: bool = True
     role_id: UUID4 | None = None
 

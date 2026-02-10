@@ -19,10 +19,6 @@ class UserRepository(Protocol):
         active: bool | None = None,
     ) -> list[User]: ...
 
-    async def get_all_users(self) -> list[User]: ...
-
-    async def get_all_user_except_superuser(self) -> list[User]: ...
-
     async def get_users_for_assignment(self, current_user_id: UUID4) -> list[User]: ...
 
     async def count_users(
@@ -98,20 +94,6 @@ class UserRepositoryImpl(UserRepository):
 
         query = query.order_by(User.username).offset(skip).limit(limit)
         result = await self.session.execute(query)
-        return list(result.scalars().unique().all())
-
-    async def get_all_users(self) -> list[User]:
-        result = await self.session.execute(
-            select(User).where(User.deleted_at.is_(None))
-        )
-        return list(result.scalars().unique().all())
-
-    async def get_all_user_except_superuser(self) -> list[User]:
-        result = await self.session.execute(
-            select(User)
-            .where(User.deleted_at.is_(None))
-            .where(User.is_superuser.is_(False))
-        )
         return list(result.scalars().unique().all())
 
     async def get_users_for_assignment(self, current_user_id: UUID4) -> list[User]:
