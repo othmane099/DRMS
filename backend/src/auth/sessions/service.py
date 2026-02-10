@@ -2,7 +2,6 @@ import logging
 import secrets
 from datetime import datetime, timedelta
 from typing import Protocol
-from uuid import UUID
 
 import pytz
 from dependency_injector.wiring import Provide, inject
@@ -17,18 +16,19 @@ logger = logging.getLogger(__name__)
 
 
 class SessionService(Protocol):
-    async def generate_session_token(self) -> str: ...
-
-    async def create_session(
-        self,
-        user_id: UUID,
-        uow: UnitOfWork,
-        hours_valid: int = 24,
-    ) -> Session: ...
-
     async def get_active_session(self, session_token: str) -> Session | Error: ...
 
     async def invalidate_session(self, session_token: str) -> Message | Error: ...
+
+
+def generate_session_token() -> str:
+    return secrets.token_urlsafe(32)
+
+
+def calculate_session_expiry(hours: int = 24) -> datetime:
+    import pytz
+
+    return datetime.now(pytz.utc) + timedelta(hours=hours)
 
 
 class SessionServiceImpl(SessionService):
@@ -38,25 +38,6 @@ class SessionServiceImpl(SessionService):
         unit_of_work: UnitOfWork = Provide["unit_of_work"],
     ):
         self._unit_of_work = unit_of_work
-
-    async def generate_session_token(self) -> str:
-        return secrets.token_urlsafe(32)
-
-    async def create_session(
-        self,
-        user_id: UUID,
-        uow: UnitOfWork,
-        hours_valid: int = 24,
-    ):
-        session_token = await self.generate_session_token()
-        expired_at = datetime.now(pytz.utc) + timedelta(hours=hours_valid)
-
-        session = await uow.session_repository.create_session(
-            user_id=user_id,
-            session_token=session_token,
-            expired_at=expired_at,
-        )
-        return session
 
     async def get_active_session(self, session_token: str):
         will_expire_at = datetime.now(pytz.utc)
