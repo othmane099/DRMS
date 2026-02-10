@@ -1,5 +1,4 @@
 from datetime import datetime
-from typing import Any
 from uuid import UUID, uuid4
 
 from pydantic import UUID4
@@ -19,12 +18,11 @@ from schemas import Error, Message
 
 
 class FakeRoleRepository(RoleRepository):
-    def __init__(self, session: Any = None):
-        self.session = session
+    def __init__(self):
         self.roles: dict[UUID, Role] = {}
         self.permissions: dict[UUID, Permission] = {}
 
-    async def get_all_roles(self, only_active: bool = True) -> list[Role]:
+    async def get_all_roles(self, only_active: bool = False) -> list[Role]:
         if only_active:
             return [r for r in self.roles.values() if r.is_active]
         return list(self.roles.values())
@@ -61,7 +59,9 @@ class FakeRoleRepository(RoleRepository):
     async def assign_permissions_to_role(
         self, role: Role, permission_ids: list[UUID4]
     ) -> None:
-        pass
+        role.permissions = [
+            p for p in self.permissions.values() if p.id in permission_ids
+        ]
 
     async def get_permissions_by_codes(
         self, permission_codes: list[str]
@@ -73,59 +73,36 @@ class FakeRoleRepository(RoleRepository):
         ]
 
     async def delete_role(self, role: Role) -> None:
-        if role.id in self.roles:
-            del self.roles[role.id]
+        self.roles.pop(role.id, None)
 
 
 class FakeRoleService(RoleService):
-    def __init__(
-        self,
-        permission_service: Any | None = None,
-        user_service: Any | None = None,
-    ):
+    def __init__(self):
         self.roles: dict[UUID, Role] = {}
-        self._permission_service = permission_service
-        self._user_service = user_service
+        self.role_permissions: dict[UUID, set[UUID]] = {}
+        self.role_user_counts: dict[UUID, int] = {}
 
     async def get_all_roles(self) -> list[RoleResponse]:
-        role_responses = []
-        for role in self.roles.values():
-            if role.is_active:
-                # Get permission count from service
-                permission_count = 0
-                if self._permission_service:
-                    permission_count = (
-                        await self._permission_service.get_permission_count_by_role_id(
-                            role.id
-                        )
-                    )
-
-                # Get user count from service
-                user_count = 0
-                if self._user_service:
-                    user_count = await self._user_service.count_users_by_role_id(
-                        role.id
-                    )
-
-                role_responses.append(
-                    RoleResponse(
-                        id=role.id,
-                        name=role.name,
-                        description=role.description,
-                        is_active=role.is_active,
-                        permission_count=permission_count,
-                        user_count=user_count,
-                        created_at=role.created_at,
-                        updated_at=role.updated_at,
-                    )
-                )
-        return role_responses
+        return [
+            RoleResponse(
+                id=role.id,
+                name=role.name,
+                description=role.description,
+                is_active=role.is_active,
+                permission_count=len(self.role_permissions.get(role.id, set())),
+                user_count=self.role_user_counts.get(role.id, 0),
+                created_at=role.created_at,
+                updated_at=role.updated_at,
+            )
+            for role in self.roles.values()
+            if role.is_active
+        ]
 
     async def get_role_by_id(self, role_id: UUID) -> Role | Error:
         role = self.roles.get(role_id)
-        if role:
-            return role
-        return Error(detail="Role not found", code=status.HTTP_404_NOT_FOUND)
+        if not role:
+            return Error(detail="Role not found", code=status.HTTP_404_NOT_FOUND)
+        return role
 
     async def get_role_by_name(self, name: str) -> Role | Error:
         for role in self.roles.values():
@@ -140,7 +117,6 @@ class FakeRoleService(RoleService):
                 detail="Role name already exists",
                 code=status.HTTP_400_BAD_REQUEST,
             )
-
         role = Role(
             id=uuid4(),
             name=role_create.name,
@@ -154,11 +130,11 @@ class FakeRoleService(RoleService):
     async def update_role(
         self, role_id: UUID4, role_update: RoleUpdate
     ) -> Role | Error:
-        existing_role = await self.get_role_by_id(role_id)
-        if isinstance(existing_role, Error):
-            return existing_role
+        role = self.roles.get(role_id)
+        if not role:
+            return Error(detail="Role not found", code=status.HTTP_404_NOT_FOUND)
 
-        if existing_role.name != role_update.name:
+        if role.name != role_update.name:
             conflict = await self.get_role_by_name(role_update.name)
             if not isinstance(conflict, Error):
                 return Error(
@@ -166,7 +142,6 @@ class FakeRoleService(RoleService):
                     code=status.HTTP_400_BAD_REQUEST,
                 )
 
-        role = self.roles[role_id]
         role.name = role_update.name
         role.description = role_update.description
         return role
@@ -176,11 +151,7 @@ class FakeRoleService(RoleService):
         if not role:
             return Error(detail="Role not found", code=status.HTTP_404_NOT_FOUND)
 
-        # Get user count from service
-        user_count = 0
-        if self._user_service:
-            user_count = await self._user_service.count_users_by_role_id(role_id)
-
+        user_count = self.role_user_counts.get(role_id, 0)
         if user_count > 0:
             return Error(
                 detail=f"Cannot delete role. {user_count} user(s) are assigned to this role",
@@ -188,6 +159,7 @@ class FakeRoleService(RoleService):
             )
 
         del self.roles[role_id]
+        self.role_permissions.pop(role_id, None)
         return Message(detail="Role deleted successfully")
 
     async def update_role_status(
@@ -205,4 +177,5 @@ class FakeRoleService(RoleService):
         role = self.roles.get(role_id)
         if not role:
             return Error(detail="Role not found", code=status.HTTP_404_NOT_FOUND)
+        self.role_permissions[role_id] = set(request.permission_ids)
         return role

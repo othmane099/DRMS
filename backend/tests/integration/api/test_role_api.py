@@ -1,10 +1,15 @@
+from uuid import uuid4
+
 import pytest
 from httpx import AsyncClient
+from sqlalchemy import select
+
+from auth.models import Permission
+from db import default_session_factory
 
 
 @pytest.mark.asyncio
 async def test_create_role_success(client: AsyncClient, superuser_token: str):
-    """Test POST /api/v1/roles creates role."""
     response = await client.post(
         "/api/v1/roles",
         json={
@@ -25,7 +30,6 @@ async def test_create_role_success(client: AsyncClient, superuser_token: str):
 
 @pytest.mark.asyncio
 async def test_get_roles_success(client: AsyncClient, superuser_token: str):
-    """Test GET /api/v1/roles returns paginated roles."""
     await client.post(
         "/api/v1/roles",
         json={"name": "Test Role", "description": "Test", "is_active": True},
@@ -33,7 +37,7 @@ async def test_get_roles_success(client: AsyncClient, superuser_token: str):
     )
 
     response = await client.get(
-        "/api/v1/roles?page=1&page_size=10",
+        "/api/v1/roles",
         headers={"X-Session-Key": superuser_token},
     )
 
@@ -43,7 +47,6 @@ async def test_get_roles_success(client: AsyncClient, superuser_token: str):
 
 @pytest.mark.asyncio
 async def test_get_role_by_id_success(client: AsyncClient, superuser_token: str):
-    """Test GET /api/v1/roles/{id} returns role."""
     create_response = await client.post(
         "/api/v1/roles",
         json={"name": "Viewer Role", "description": "Can view", "is_active": True},
@@ -57,13 +60,11 @@ async def test_get_role_by_id_success(client: AsyncClient, superuser_token: str)
     )
 
     assert response.status_code == 200
-    data = response.json()
-    assert data["name"] == "Viewer Role"
+    assert response.json()["name"] == "Viewer Role"
 
 
 @pytest.mark.asyncio
 async def test_update_role_success(client: AsyncClient, superuser_token: str):
-    """Test PUT /api/v1/roles/{id} updates role."""
     create_response = await client.post(
         "/api/v1/roles",
         json={"name": "Editor Role", "description": "Can edit", "is_active": True},
@@ -89,7 +90,6 @@ async def test_update_role_success(client: AsyncClient, superuser_token: str):
 
 @pytest.mark.asyncio
 async def test_delete_role_success(client: AsyncClient, superuser_token: str):
-    """Test DELETE /api/v1/roles/{id} deletes role."""
     create_response = await client.post(
         "/api/v1/roles",
         json={"name": "Temp Role", "description": "Temporary", "is_active": True},
@@ -109,7 +109,6 @@ async def test_delete_role_success(client: AsyncClient, superuser_token: str):
 async def test_update_role_status_deactivate_success(
     client: AsyncClient, superuser_token: str
 ):
-    """Test PATCH /api/v1/roles/{id}/status deactivates role."""
     create_response = await client.post(
         "/api/v1/roles",
         json={"name": "Active Role", "description": "Active", "is_active": True},
@@ -124,15 +123,13 @@ async def test_update_role_status_deactivate_success(
     )
 
     assert response.status_code == 200
-    data = response.json()
-    assert data["is_active"] is False
+    assert response.json()["is_active"] is False
 
 
 @pytest.mark.asyncio
 async def test_update_role_status_activate_success(
     client: AsyncClient, superuser_token: str
 ):
-    """Test PATCH /api/v1/roles/{id}/status activates role."""
     create_response = await client.post(
         "/api/v1/roles",
         json={"name": "Inactive Role", "description": "Inactive", "is_active": False},
@@ -147,15 +144,11 @@ async def test_update_role_status_activate_success(
     )
 
     assert response.status_code == 200
-    data = response.json()
-    assert data["is_active"] is True
+    assert response.json()["is_active"] is True
 
 
 @pytest.mark.asyncio
 async def test_update_role_status_not_found(client: AsyncClient, superuser_token: str):
-    """Test PATCH /api/v1/roles/{id}/status returns 404 for non-existent role."""
-    from uuid import uuid4
-
     response = await client.patch(
         f"/api/v1/roles/{uuid4()}/status",
         json={"is_active": False},
@@ -165,14 +158,47 @@ async def test_update_role_status_not_found(client: AsyncClient, superuser_token
     assert response.status_code == 404
 
 
-# Permission-based tests
+@pytest.mark.asyncio
+async def test_assign_permissions_success(client: AsyncClient, superuser_token: str):
+    create_response = await client.post(
+        "/api/v1/roles",
+        json={
+            "name": "Managed Role",
+            "description": "Role with perms",
+            "is_active": True,
+        },
+        headers={"X-Session-Key": superuser_token},
+    )
+    created = create_response.json()
+
+    async with default_session_factory() as db:
+        perm_ids = (
+            (
+                await db.execute(
+                    select(Permission.id).where(
+                        Permission.code.in_(["roles.list", "roles.view"])
+                    )
+                )
+            )
+            .scalars()
+            .all()
+        )
+
+    response = await client.post(
+        f"/api/v1/roles/{created['id']}/permissions",
+        json={"permission_ids": [str(pid) for pid in perm_ids]},
+        headers={"X-Session-Key": superuser_token},
+    )
+
+    assert response.status_code == 200
+    assigned_codes = {p["code"] for p in response.json()["permissions"]}
+    assert {"roles.list", "roles.view"}.issubset(assigned_codes)
 
 
 @pytest.mark.asyncio
-async def test_list_roles_with_permission(
+async def test_get_roles_with_permission(
     client: AsyncClient, user_with_roles_permissions: str
 ):
-    """Test GET /api/v1/roles succeeds with roles.list permission."""
     response = await client.get(
         "/api/v1/roles",
         headers={"X-Session-Key": user_with_roles_permissions},
@@ -182,10 +208,9 @@ async def test_list_roles_with_permission(
 
 
 @pytest.mark.asyncio
-async def test_list_roles_without_permission(
+async def test_get_roles_without_permission(
     client: AsyncClient, user_without_permissions: str
 ):
-    """Test GET /api/v1/roles fails without roles.list permission."""
     response = await client.get(
         "/api/v1/roles",
         headers={"X-Session-Key": user_without_permissions},
@@ -198,7 +223,6 @@ async def test_list_roles_without_permission(
 async def test_create_role_with_permission(
     client: AsyncClient, user_with_roles_permissions: str
 ):
-    """Test POST /api/v1/roles succeeds with roles.create permission."""
     response = await client.post(
         "/api/v1/roles",
         json={"name": "Authorized Role"},
@@ -212,7 +236,6 @@ async def test_create_role_with_permission(
 async def test_create_role_without_permission(
     client: AsyncClient, user_without_permissions: str
 ):
-    """Test POST /api/v1/roles fails without roles.create permission."""
     response = await client.post(
         "/api/v1/roles",
         json={"name": "Unauthorized Role"},
@@ -226,7 +249,6 @@ async def test_create_role_without_permission(
 async def test_get_role_by_id_without_permission(
     client: AsyncClient, superuser_token: str, user_without_permissions: str
 ):
-    """Test GET /api/v1/roles/{id} fails without roles.view permission."""
     create_response = await client.post(
         "/api/v1/roles",
         json={"name": "View Test Role"},
@@ -246,7 +268,6 @@ async def test_get_role_by_id_without_permission(
 async def test_update_role_without_permission(
     client: AsyncClient, superuser_token: str, user_without_permissions: str
 ):
-    """Test PUT /api/v1/roles/{id} fails without roles.update permission."""
     create_response = await client.post(
         "/api/v1/roles",
         json={"name": "Before Role"},
@@ -267,7 +288,6 @@ async def test_update_role_without_permission(
 async def test_delete_role_without_permission(
     client: AsyncClient, superuser_token: str, user_without_permissions: str
 ):
-    """Test DELETE /api/v1/roles/{id} fails without roles.delete permission."""
     create_response = await client.post(
         "/api/v1/roles",
         json={"name": "To Delete Role"},
@@ -287,7 +307,6 @@ async def test_delete_role_without_permission(
 async def test_assign_permissions_without_permission(
     client: AsyncClient, superuser_token: str, user_without_permissions: str
 ):
-    """Test POST /api/v1/roles/{id}/permissions fails without roles.assign_permissions."""
     create_response = await client.post(
         "/api/v1/roles",
         json={"name": "Test Role"},
@@ -295,11 +314,11 @@ async def test_assign_permissions_without_permission(
     )
     created = create_response.json()
 
-    perms_response = await client.get(
-        "/api/v1/permissions",
-        headers={"X-Session-Key": superuser_token},
-    )
-    perms = perms_response.json()
+    perms = (
+        await client.get(
+            "/api/v1/permissions", headers={"X-Session-Key": superuser_token}
+        )
+    ).json()
 
     response = await client.post(
         f"/api/v1/roles/{created['id']}/permissions",
