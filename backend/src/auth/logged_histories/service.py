@@ -1,19 +1,16 @@
 import logging
 from datetime import datetime
 from typing import Protocol
-from uuid import UUID
 
 from dependency_injector.wiring import Provide, inject
 from pydantic import UUID4
-from starlette import status
 
 from auth.logged_histories.schemas import (
-    LoggedHistoryCreate,
     LoggedHistoryResponse,
     PaginatedLoggedHistoryResponse,
 )
-from auth.models import LoggedHistory, LoggedHistoryType
-from schemas import Error, Message
+from auth.models import LoggedHistoryType
+from schemas import Error
 from unit_of_work.uow import UnitOfWork
 
 logger = logging.getLogger(__name__)
@@ -30,20 +27,6 @@ class LoggedHistoryService(Protocol):
         date_to: datetime | None = None,
         search: str | None = None,
     ) -> PaginatedLoggedHistoryResponse | Error: ...
-
-    async def get_logged_history_by_id(
-        self, logged_history_id: UUID
-    ) -> LoggedHistory | Error: ...
-
-    async def create_logged_history(
-        self, logged_history_create: LoggedHistoryCreate, uow: UnitOfWork
-    ) -> LoggedHistory | Error: ...
-
-    async def delete_logged_history(
-        self, logged_history_id: UUID4
-    ) -> Message | Error: ...
-
-    async def delete_all_logged_histories(self) -> Message | Error: ...
 
 
 class LoggedHistoryServiceImpl(LoggedHistoryService):
@@ -126,84 +109,3 @@ class LoggedHistoryServiceImpl(LoggedHistoryService):
             has_next=page < total_pages,
             has_previous=page > 1,
         )
-
-    async def get_logged_history_by_id(
-        self, logged_history_id: UUID
-    ) -> LoggedHistory | Error:
-        logger.debug("Fetching logged history by id=%s", logged_history_id)
-
-        async with self._unit_of_work as uow:
-            logged_history = (
-                await uow.logged_history_repository.get_logged_history_by_id(
-                    logged_history_id
-                )
-            )
-            if not logged_history:
-                logger.warning("Logged history not found (id=%s)", logged_history_id)
-                return Error(
-                    detail="Logged history not found", code=status.HTTP_404_NOT_FOUND
-                )
-
-            logger.debug("Logged history found (id=%s)", logged_history_id)
-            return logged_history
-
-    async def create_logged_history(
-        self, logged_history_create: LoggedHistoryCreate, uow: UnitOfWork
-    ) -> LoggedHistory | Error:
-        logger.info(
-            "Creating logged history (type=%s, user_id=%s)",
-            logged_history_create.type,
-            logged_history_create.user_id,
-        )
-
-        instance = await uow.logged_history_repository.create_logged_history(
-            logged_history_create
-        )
-        await uow.commit()
-        created_logged_history = (
-            await uow.logged_history_repository.get_logged_history_by_id(instance.id)
-        )
-
-        logger.info(
-            "Logged history created successfully (id=%s)", created_logged_history.id
-        )
-        return created_logged_history
-
-    async def delete_logged_history(self, logged_history_id: UUID4) -> Message | Error:
-        logger.info("Deleting logged history (id=%s)", logged_history_id)
-
-        async with self._unit_of_work as uow:
-            logged_history = (
-                await uow.logged_history_repository.get_logged_history_by_id(
-                    logged_history_id
-                )
-            )
-            if not logged_history:
-                logger.warning(
-                    "Logged history deletion failed: not found (id=%s)",
-                    logged_history_id,
-                )
-                return Error(
-                    detail="Logged history not found", code=status.HTTP_404_NOT_FOUND
-                )
-            await uow.logged_history_repository.delete_logged_history(logged_history)
-            await uow.commit()
-
-        logger.info("Logged history deleted successfully (id=%s)", logged_history_id)
-        return Message(detail="Logged history deleted successfully")
-
-    async def delete_all_logged_histories(self) -> Message | Error:
-        logger.info("Deleting all logged histories")
-
-        async with self._unit_of_work as uow:
-            logged_histories = (
-                await uow.logged_history_repository.get_all_logged_histories_paginated(
-                    skip=0, limit=10000
-                )
-            )
-            for lh in logged_histories:
-                await uow.logged_history_repository.delete_logged_history(lh)
-            await uow.commit()
-
-        logger.info("All logged histories deleted successfully")
-        return Message(detail="All logged histories deleted successfully")
