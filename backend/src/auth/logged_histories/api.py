@@ -7,12 +7,11 @@ from pydantic import UUID4
 
 from auth.dependencies import require_permission
 from auth.logged_histories.schemas import (
-    LoggedHistoryResponse,
     PaginatedLoggedHistoryResponse,
 )
 from auth.logged_histories.service import LoggedHistoryService
 from auth.models import LoggedHistoryType
-from schemas import Error, Message
+from schemas import Error
 
 router = APIRouter(tags=["logged-histories"])
 
@@ -47,75 +46,6 @@ async def get_logged_histories(
         date_to=date_to,
         search=search,
     )
-    if isinstance(response, Error):
-        raise HTTPException(status_code=response.code, detail=response.detail)
-    return response
-
-
-@router.get(
-    "/logged-history/{logged_history_id}",
-    response_model=LoggedHistoryResponse,
-    dependencies=[Depends(require_permission("logged_histories.view"))],
-    description="Required permission: logged_histories.view",
-)
-@inject
-async def get_logged_history(
-    logged_history_id: UUID4,
-    logged_history_service: LoggedHistoryService = Depends(
-        Provide["logged_history_service"]
-    ),
-) -> LoggedHistoryResponse:
-    response = await logged_history_service.get_logged_history_by_id(logged_history_id)
-    if isinstance(response, Error):
-        raise HTTPException(status_code=response.code, detail=response.detail)
-
-    user_name = None
-    if response.user:
-        user_name = f"{response.user.first_name} {response.user.last_name}"
-
-    return LoggedHistoryResponse(
-        id=response.id,
-        user_id=response.user_id,
-        user_name=user_name,
-        ip=response.ip,
-        date=response.date,
-        details=response.details,
-        type=response.type,
-    )
-
-
-@router.delete(
-    "/logged-history/{logged_history_id}",
-    response_model=Message,
-    dependencies=[Depends(require_permission("logged_histories.delete"))],
-    description="Required permission: logged_histories.delete",
-)
-@inject
-async def delete_logged_history(
-    logged_history_id: UUID4,
-    logged_history_service: LoggedHistoryService = Depends(
-        Provide["logged_history_service"]
-    ),
-) -> Message:
-    response = await logged_history_service.delete_logged_history(logged_history_id)
-    if isinstance(response, Error):
-        raise HTTPException(status_code=response.code, detail=response.detail)
-    return response
-
-
-@router.delete(
-    "/logged-history",
-    response_model=Message,
-    dependencies=[Depends(require_permission("logged_histories.delete"))],
-    description="Required permission: logged_histories.delete",
-)
-@inject
-async def delete_all_logged_histories(
-    logged_history_service: LoggedHistoryService = Depends(
-        Provide["logged_history_service"]
-    ),
-) -> Message:
-    response = await logged_history_service.delete_all_logged_histories()
     if isinstance(response, Error):
         raise HTTPException(status_code=response.code, detail=response.detail)
     return response
