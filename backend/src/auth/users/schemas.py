@@ -109,3 +109,8 @@ class UserBasicIdResponse(BaseModel):
     id: UUID4
     username: str
     model_config = ConfigDict(from_attributes=True)
+
+
+class PasswordUpdate(BaseModel):
+    current_password: Annotated[str, Field(min_length=1, max_length=255)]
+    new_password: Annotated[str, Field(min_length=6, max_length=255)]

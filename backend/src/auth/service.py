@@ -103,8 +103,12 @@ class AuthServiceImpl(AuthService):
                 or isinstance(user, Error)
                 or not _verify_password(body.password, str(user.password))
             ):
-                logger.warning("Failed login attempt for username: %s", normalized_username)
-                user_id = None if not user or isinstance(user, Error) else UUID(str(user.id))
+                logger.warning(
+                    "Failed login attempt for username: %s", normalized_username
+                )
+                user_id = (
+                    None if not user or isinstance(user, Error) else UUID(str(user.id))
+                )
                 await _log_failed_login(
                     uow,
                     user_id,
@@ -119,7 +123,9 @@ class AuthServiceImpl(AuthService):
                 )
 
             if not user.is_active:
-                logger.warning("Login attempt for inactive user: %s", normalized_username)
+                logger.warning(
+                    "Login attempt for inactive user: %s", normalized_username
+                )
                 await _log_failed_login(
                     uow, UUID(str(user.id)), body.username, ip_address, "inactive_user"
                 )
@@ -131,7 +137,9 @@ class AuthServiceImpl(AuthService):
             session = await _create_user_session(uow, user_uuid)
             await _log_successful_login(uow, user_uuid, body.username, ip_address)
             await uow.commit()
-            logger.info("User logged in successfully: %s (ID: %s)", user.username, user.id)
+            logger.info(
+                "User logged in successfully: %s (ID: %s)", user.username, user.id
+            )
             return LoginResponse(
                 token=str(session.token),
                 user=UserResponse.model_validate(user),

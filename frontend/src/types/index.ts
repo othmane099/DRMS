@@ -1,3 +1,7 @@
+// Common types
+export interface Message {
+  detail: string;
+}
 // User types
 export interface User {
   id: string; // UUID
@@ -259,6 +263,11 @@ export interface BulkAction {
   parameters?: {
     role_id?: string; // UUID
   };
+}
+
+export interface PasswordUpdate {
+  current_password: string;
+  new_password: string;
 }
 
 // Document types
