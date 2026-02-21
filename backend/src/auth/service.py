@@ -1,6 +1,7 @@
 import logging
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Protocol
+from uuid import UUID
 
 from dependency_injector.wiring import Provide, inject
 from passlib.handlers.pbkdf2 import pbkdf2_sha256
@@ -8,7 +9,7 @@ from pydantic import UUID4
 from starlette import status
 
 from auth.logged_histories.schemas import LoggedHistoryCreate
-from auth.models import LoggedHistoryType
+from auth.models import LoggedHistoryType, Session
 from auth.schemas import LoginRequest, LoginResponse
 from auth.sessions.service import calculate_session_expiry, generate_session_token
 from auth.users.schemas import UserResponse
@@ -34,7 +35,7 @@ def _verify_password(password: str, hashed_password: str) -> bool:
 
 async def _log_failed_login(
     uow: UnitOfWork,
-    user_id: str | None,
+    user_id: UUID | None,
     username: str,
     ip_address: str | None,
     reason: str,
@@ -43,7 +44,7 @@ async def _log_failed_login(
         LoggedHistoryCreate(
             user_id=user_id,
             ip=ip_address,
-            date=datetime.now(),
+            date=datetime.now(tz=UTC),
             details={"username": username, "reason": reason},
             type=LoggedHistoryType.FAILED_LOGIN,
         )
@@ -60,14 +61,14 @@ async def _log_successful_login(
         LoggedHistoryCreate(
             user_id=user_id,
             ip=ip_address,
-            date=datetime.now(),
+            date=datetime.now(tz=UTC),
             details={"username": username},
             type=LoggedHistoryType.LOGIN,
         )
     )
 
 
-async def _create_user_session(uow: UnitOfWork, user_id: UUID4):
+async def _create_user_session(uow: UnitOfWork, user_id: UUID4) -> Session:
     session_token = generate_session_token()
     expired_at = calculate_session_expiry()
     return await uow.session_repository.create_session(
@@ -100,12 +101,10 @@ class AuthServiceImpl(AuthService):
             if (
                 not user
                 or isinstance(user, Error)
-                or not _verify_password(body.password, user.password)
+                or not _verify_password(body.password, str(user.password))
             ):
-                logger.warning(
-                    "Failed login attempt for username: %s", normalized_username
-                )
-                user_id = None if not user or isinstance(user, Error) else user.id
+                logger.warning("Failed login attempt for username: %s", normalized_username)
+                user_id = None if not user or isinstance(user, Error) else UUID(str(user.id))
                 await _log_failed_login(
                     uow,
                     user_id,
@@ -113,27 +112,28 @@ class AuthServiceImpl(AuthService):
                     ip_address,
                     "invalid_username_or_password",
                 )
+                await uow.commit()
                 return Error(
                     detail="Invalid username or password",
                     code=status.HTTP_401_UNAUTHORIZED,
                 )
 
             if not user.is_active:
-                logger.warning(
-                    "Login attempt for inactive user: %s", normalized_username
-                )
+                logger.warning("Login attempt for inactive user: %s", normalized_username)
                 await _log_failed_login(
-                    uow, user.id, body.username, ip_address, "inactive_user"
+                    uow, UUID(str(user.id)), body.username, ip_address, "inactive_user"
                 )
+                await uow.commit()
                 return Error(detail="Inactive user", code=status.HTTP_401_UNAUTHORIZED)
 
-            user.last_login = datetime.now()
-            session = await _create_user_session(uow, user.id)
-            await _log_successful_login(uow, user.id, body.username, ip_address)
+            user.last_login = datetime.now(tz=UTC)
+            user_uuid = UUID(str(user.id))
+            session = await _create_user_session(uow, user_uuid)
+            await _log_successful_login(uow, user_uuid, body.username, ip_address)
             await uow.commit()
-            logger.info(f"User logged in successfully: {user.username} (ID: {user.id})")
+            logger.info("User logged in successfully: %s (ID: %s)", user.username, user.id)
             return LoginResponse(
-                token=session.token,
+                token=str(session.token),
                 user=UserResponse.model_validate(user),
                 expires_in=session.expires_in,
             )
