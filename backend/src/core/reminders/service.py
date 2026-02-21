@@ -194,7 +194,7 @@ class ReminderServiceImpl(ReminderService):
             await uow.history_repository.create_document_history(
                 document_id=reminder.document_id,
                 action="Update reminder",
-                description=f"Update reminder for {reminder.document.name} by user {current_user_id}",
+                description=f"Update reminder for {reminder.document.name}",
                 created_by=current_user_id,
             )
 
@@ -229,7 +229,7 @@ class ReminderServiceImpl(ReminderService):
             await uow.history_repository.create_document_history(
                 document_id=reminder.document_id,
                 action="Delete reminder",
-                description=f"Delete reminder for {reminder.document.name} by user {current_user_id}",
+                description=f"Delete reminder for {reminder.document.name}",
                 created_by=current_user_id,
             )
 
@@ -320,7 +320,7 @@ class ReminderServiceImpl(ReminderService):
             await uow.history_repository.create_document_history(
                 document_id=document_id,
                 action="Create reminder",
-                description=f"Create reminder for {document.name} created by user {current_user_id}",
+                description=f"Create reminder for {document.name}",
                 created_by=current_user_id,
             )
 
