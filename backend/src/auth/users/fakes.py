@@ -11,6 +11,7 @@ from auth.users.schemas import (
     BulkActionResponse,
     BulkUserAction,
     PaginatedUserResponse,
+    PasswordUpdate,
     PermissionBasicResponse,
     UserCreate,
     UserPermissionsResponse,
@@ -557,3 +558,20 @@ class FakeUserService(UserService):
                 PermissionBasicResponse.model_validate(p) for p in new_permissions
             ],
         )
+
+    async def update_password(
+        self, user_id: UUID, password_update: PasswordUpdate
+    ) -> Message | Error:
+        user = self.users.get(user_id)
+        if not user or user.deleted_at is not None or user.is_superuser:
+            return Error(detail="User not found", code=status.HTTP_404_NOT_FOUND)
+
+        if not pbkdf2_sha256.verify(
+            password_update.current_password, str(user.password)
+        ):
+            return Error(
+                detail="Current password is incorrect", code=status.HTTP_400_BAD_REQUEST
+            )
+
+        user.password = pbkdf2_sha256.hash(password_update.new_password)
+        return Message(detail="Password updated successfully")

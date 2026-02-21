@@ -1,4 +1,5 @@
 import logging
+from uuid import UUID
 
 from dependency_injector.wiring import Provide, inject
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -9,6 +10,7 @@ from auth.users.schemas import (
     BulkActionResponse,
     BulkUserAction,
     PaginatedUserResponse,
+    PasswordUpdate,
     UserBasicIdResponse,
     UserCreate,
     UserPermissionsResponse,
@@ -44,6 +46,25 @@ async def get_users(
 ) -> PaginatedUserResponse:
     response = await user_service.get_all_users_paginated(
         page=page, page_size=page_size, role_id=role_id, search=search, active=active
+    )
+    if isinstance(response, Error):
+        raise HTTPException(status_code=response.code, detail=response.detail)
+    return response
+
+
+@router.patch(
+    "/users/password",
+    response_model=Message,
+    description="Update the current user's password. Requires the correct current password.",
+)
+@inject
+async def update_password(
+    current_user: CurrentUser,
+    password_update: PasswordUpdate,
+    user_service: UserService = Depends(Provide["user_service"]),
+) -> Message:
+    response = await user_service.update_password(
+        UUID(str(current_user.id)), password_update
     )
     if isinstance(response, Error):
         raise HTTPException(status_code=response.code, detail=response.detail)

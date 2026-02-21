@@ -14,6 +14,7 @@ from auth.users.schemas import (
     BulkActionResponse,
     BulkUserAction,
     PaginatedUserResponse,
+    PasswordUpdate,
     PermissionBasicResponse,
     UserCreate,
     UserPermissionsResponse,
@@ -76,6 +77,10 @@ class UserService(Protocol):
     async def update_user_permissions(
         self, user_id: UUID, permissions_update: UserPermissionsUpdate
     ) -> UserPermissionsResponse | Error: ...
+
+    async def update_password(
+        self, user_id: UUID, password_update: PasswordUpdate
+    ) -> Message | Error: ...
 
 
 class UserServiceImpl(UserService):
@@ -569,3 +574,34 @@ class UserServiceImpl(UserService):
             role_permissions=role_permissions,
             custom_permissions=custom_permissions,
         )
+
+    async def update_password(
+        self, user_id: UUID, password_update: PasswordUpdate
+    ) -> Message | Error:
+        logger.info("Updating password for user (id=%s)", user_id)
+
+        async with self._unit_of_work as uow:
+            user = await uow.user_repository.get_user_by_id(user_id)
+            if not user:
+                logger.warning(
+                    "Password update failed: user not found (id=%s)", user_id
+                )
+                return Error(detail="User not found", code=status.HTTP_404_NOT_FOUND)
+
+            if not pbkdf2_sha256.verify(
+                password_update.current_password, str(user.password)
+            ):
+                logger.warning(
+                    "Password update failed: incorrect current password (id=%s)",
+                    user_id,
+                )
+                return Error(
+                    detail="Current password is incorrect",
+                    code=status.HTTP_400_BAD_REQUEST,
+                )
+
+            user.password = pbkdf2_sha256.hash(password_update.new_password)
+            await uow.commit()
+
+        logger.info("Password updated successfully (id=%s)", user_id)
+        return Message(detail="Password updated successfully")
