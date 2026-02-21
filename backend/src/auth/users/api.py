@@ -14,7 +14,6 @@ from auth.users.schemas import (
     UserPermissionsResponse,
     UserPermissionsUpdate,
     UserResponse,
-    UserResponseWithPrograms,
     UserRoleUpdate,
     UserStatus,
     UserStatusUpdate,
@@ -78,18 +77,18 @@ async def get_users_for_assignment(
 
 @router.get(
     "/users/{user_id}",
-    response_model=UserResponseWithPrograms,
+    response_model=UserResponse,
     dependencies=[Depends(require_permission("users.view"))],
     description="Required permission: users.view",
 )
 @inject
 async def get_user(
     user_id: UUID4, user_service: UserService = Depends(Provide["user_service"])
-) -> UserResponseWithPrograms:
+) -> UserResponse:
     response = await user_service.get_user_by_id(user_id)
     if isinstance(response, Error):
         raise HTTPException(status_code=response.code, detail=response.detail)
-    return UserResponseWithPrograms.model_validate(response)
+    return UserResponse.model_validate(response)
 
 
 @router.post(
