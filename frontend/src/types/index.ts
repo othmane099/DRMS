@@ -13,7 +13,6 @@ export interface User {
   is_active: boolean;
   is_superuser?: boolean;
   last_login?: string;
-  role_id?: string | null; // UUID
   role?: RoleWithPermissions | null;
   custom_permissions?: (Permission | string)[]; // Can be array of Permission objects or permission code strings
   created_at?: string;
