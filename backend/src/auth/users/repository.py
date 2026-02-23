@@ -1,7 +1,7 @@
 from typing import Protocol
 
 from pydantic import UUID4
-from sqlalchemy import func, insert, or_, select
+from sqlalchemy import func, insert, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -53,6 +53,12 @@ class UserRepository(Protocol):
     ) -> User | None: ...
 
     async def create_user(self, user_create: UserCreate) -> User | None: ...
+
+    async def get_user_by_telegram_chat_id(self, chat_id: int) -> User | None: ...
+
+    async def link_telegram(self, user_id: UUID4, chat_id: int) -> None: ...
+
+    async def unlink_telegram(self, chat_id: int) -> None: ...
 
 
 class UserRepositoryImpl(UserRepository):
@@ -231,3 +237,27 @@ class UserRepositoryImpl(UserRepository):
             .where(Permission.is_active.is_(True))
         )
         return list(result.scalars().all())
+
+    async def get_user_by_telegram_chat_id(self, chat_id: int) -> User | None:
+        result = await self.session.execute(
+            select(User)
+            .where(User.telegram_chat_id == chat_id)
+            .where(User.deleted_at.is_(None))
+            .options(
+                selectinload(User.role).selectinload(Role.permissions),
+                selectinload(User.custom_permissions),
+            )
+        )
+        return result.scalar_one_or_none()
+
+    async def link_telegram(self, user_id: UUID4, chat_id: int) -> None:
+        await self.session.execute(
+            update(User).where(User.id == user_id).values(telegram_chat_id=chat_id)
+        )
+
+    async def unlink_telegram(self, chat_id: int) -> None:
+        await self.session.execute(
+            update(User)
+            .where(User.telegram_chat_id == chat_id)
+            .values(telegram_chat_id=None)
+        )
