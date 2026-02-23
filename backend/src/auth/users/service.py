@@ -82,6 +82,12 @@ class UserService(Protocol):
         self, user_id: UUID, password_update: PasswordUpdate
     ) -> Message | Error: ...
 
+    async def get_user_by_telegram_chat_id(self, chat_id: int) -> User | Error: ...
+
+    async def link_telegram(self, user_id: UUID4, chat_id: int) -> Message | Error: ...
+
+    async def unlink_telegram(self, chat_id: int) -> Message | Error: ...
+
 
 class UserServiceImpl(UserService):
     @inject
@@ -605,3 +611,27 @@ class UserServiceImpl(UserService):
 
         logger.info("Password updated successfully (id=%s)", user_id)
         return Message(detail="Password updated successfully")
+
+    async def get_user_by_telegram_chat_id(self, chat_id: int) -> User | Error:
+        logger.debug("Fetching user by telegram_chat_id=%s", chat_id)
+        async with self._unit_of_work as uow:
+            user = await uow.user_repository.get_user_by_telegram_chat_id(chat_id)
+        if not user:
+            return Error(
+                detail="Telegram account not linked", code=status.HTTP_404_NOT_FOUND
+            )
+        return user
+
+    async def link_telegram(self, user_id: UUID4, chat_id: int) -> Message | Error:
+        logger.info("Linking telegram_chat_id=%s to user_id=%s", chat_id, user_id)
+        async with self._unit_of_work as uow:
+            await uow.user_repository.link_telegram(user_id, chat_id)
+            await uow.commit()
+        return Message(detail="Telegram account linked successfully")
+
+    async def unlink_telegram(self, chat_id: int) -> Message | Error:
+        logger.info("Unlinking telegram_chat_id=%s", chat_id)
+        async with self._unit_of_work as uow:
+            await uow.user_repository.unlink_telegram(chat_id)
+            await uow.commit()
+        return Message(detail="Telegram account unlinked successfully")

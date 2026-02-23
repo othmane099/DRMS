@@ -1,7 +1,7 @@
 import enum
 from uuid import uuid4
 
-from sqlalchemy import Boolean, Column, DateTime, ForeignKey, String, Table
+from sqlalchemy import BigInteger, Boolean, Column, DateTime, ForeignKey, String, Table
 from sqlalchemy.dialects.postgresql import ENUM, JSON, UUID
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
@@ -108,6 +108,7 @@ class User(Base):  # type: ignore
     last_login = Column(DateTime(timezone=True), nullable=True)
     deleted_at = Column(DateTime(timezone=True), nullable=True)
     role_id = Column(UUID, ForeignKey("roles.id"), nullable=True)
+    telegram_chat_id = Column(BigInteger, unique=True, nullable=True)
 
     role = relationship("Role", back_populates="users")
     sessions = relationship("Session", back_populates="user")

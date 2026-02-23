@@ -23,6 +23,9 @@ class Settings(BaseSettings):
     # Secret key for encrypting share links (32 url-safe base64-encoded bytes)
     SHARE_LINK_SECRET_KEY: str = "uifncAbVYX19EKKpF6HBUAmDerMY52r4ggx0gXAujrM="
 
+    # Telegram bot token from @BotFather
+    TELEGRAM_BOT_TOKEN: str = ""
+
     if os.environ.get("ENV_FILE") == ".env.test":
         model_config = SettingsConfigDict(
             env_file=".env.test", env_file_encoding="utf-8"
