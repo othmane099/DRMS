@@ -36,7 +36,11 @@ export default function SharedDocumentPage() {
 
       if (apiError.status === 401) {
         setIsPasswordRequired(true);
-        setError('Password is required to view this document');
+        if (submittedPassword) {
+          setError('Invalid password or link has expired');
+        } else {
+          setError('Password is required to view this document');
+        }
       } else if (apiError.status === 403) {
         setError('Invalid password or link has expired');
       } else if (apiError.status === 404) {
