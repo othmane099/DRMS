@@ -36,7 +36,7 @@ def main() -> None:
     app.add_handler(CommandHandler("unlink", unlink))
     app.add_handler(CommandHandler("documents", documents))
     app.add_handler(CommandHandler("reminders", reminders))
-    app.add_handler(CallbackQueryHandler(documents_callback, pattern=r"^dd?:"))
+    app.add_handler(CallbackQueryHandler(documents_callback, pattern=r"^d[dw]?:"))
     app.add_handler(CallbackQueryHandler(reminders_callback, pattern=r"^rd?:"))
 
     logger.info("DRMS bot is running — press Ctrl+C to stop.")
