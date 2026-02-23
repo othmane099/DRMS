@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+from pathlib import Path
 from uuid import UUID
 
 from dependency_injector.wiring import Provide, inject
@@ -8,7 +9,7 @@ from telegram import Update
 from telegram.ext import ContextTypes
 
 from auth.users.service import UserService
-from bot.keyboards import doc_back_keyboard, doc_list_keyboard, h
+from bot.keyboards import doc_detail_keyboard, doc_list_keyboard, h
 from core.documents.service import DocumentService
 from schemas import Error
 
@@ -114,8 +115,33 @@ async def documents_callback(
         await query.edit_message_text(
             _doc_detail_text(doc),
             parse_mode="HTML",
-            reply_markup=doc_back_keyboard(from_page),
+            reply_markup=doc_detail_keyboard(doc_id, from_page),
         )
+
+    elif data.startswith("dw:"):
+        doc_id = data.split(":", 1)[1]
+        file_path_result = await document_svc.get_document_file_path(
+            UUID(doc_id), user_id=user.id
+        )
+        if isinstance(file_path_result, Error):
+            await context.bot.send_message(
+                chat_id=chat_id,
+                text=f"Download failed: {file_path_result.detail}",
+            )
+            return
+        path = Path(file_path_result)
+        if not path.exists():
+            await context.bot.send_message(
+                chat_id=chat_id, text="File not found on disk."
+            )
+            return
+        with path.open("rb") as f:
+            await context.bot.send_document(
+                chat_id=chat_id,
+                document=f,
+                filename=path.name,
+            )
+
     else:
         page = int(data.split(":")[1])
         result = await document_svc.get_all_documents_paginated(
