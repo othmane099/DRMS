@@ -83,30 +83,16 @@ def test_share_link_with_password_and_expiration(
         pom.goto()
         page.wait_for_load_state("networkidle")
 
-        # Locate the row for the created document and click its share button.
-        row = page.locator("tbody tr").filter(has_text=doc["name"])
-        row.get_by_title("Generate share link").click()
+        pom.click_share(doc["name"])
 
-        # ShareLinkModal should be visible.
         expect(page.get_by_role("heading", name="Generate Share Link")).to_be_visible()
 
-        # Fill in the expiration date.
-        page.get_by_label("Expiration Date (Optional)").fill(expiration_date)
-
-        # Fill in the password.
-        page.get_by_label("Password (Optional)").fill(share_password)
-
-        # Submit the form.
-        page.get_by_role("button", name="Generate Link").click()
+        pom.generate_share_link(expiration_date=expiration_date, password=share_password)
         page.wait_for_load_state("networkidle")
 
-        # The modal transitions to the success screen.
         expect(page.get_by_role("heading", name="Share Link Generated")).to_be_visible()
 
-        # Capture the generated URL from the read-only input.
-        link_input = page.locator('input[type="text"][readonly]')
-        expect(link_input).to_be_visible()
-        share_url = link_input.input_value()
+        share_url = pom.get_share_url()
         assert share_url and "/share/" in share_url, f"Unexpected share URL: {share_url!r}"
 
     finally:

@@ -50,6 +50,29 @@ class DocumentsPage(BasePage):
         """Click the 'Add Document' button to open the create form modal."""
         self.page.get_by_role("button", name="Add Document").click()
 
+    def click_share(self, name: str) -> None:
+        """Click 'Generate share link' in the row for the given document name."""
+        self.page.locator("tbody tr").filter(has_text=name).get_by_title(
+            "Generate share link"
+        ).click()
+
+    def generate_share_link(
+        self,
+        *,
+        expiration_date: str | None = None,
+        password: str | None = None,
+    ) -> None:
+        """Fill the share link modal and click 'Generate Link'."""
+        if expiration_date:
+            self.page.get_by_label("Expiration Date (Optional)").fill(expiration_date)
+        if password:
+            self.page.get_by_label("Password (Optional)").fill(password)
+        self.page.get_by_role("button", name="Generate Link").click()
+
+    def get_share_url(self) -> str:
+        """Return the generated share URL from the success screen."""
+        return self.page.locator('input[type="text"][readonly]').input_value()
+
 
 class MyDocumentsPage(DocumentsPage):
     URL = "/my-documents"

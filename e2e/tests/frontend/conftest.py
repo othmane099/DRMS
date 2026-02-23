@@ -126,6 +126,44 @@ def fe_alice_headers(fe_alice: dict) -> dict[str, str]:
     return _headers(tok)
 
 
+# ── Reminder API helpers ──────────────────────────────────────────────────────
+
+def create_reminder(
+    headers: dict,
+    doc_id: str,
+    assign_user_ids: list[str],
+    subject: str,
+    *,
+    message: str = "FE test reminder",
+    date: str = "2030-06-01",
+    time: str = "08:00:00",
+) -> dict:
+    """Create a reminder via API and return the response JSON."""
+    resp = httpx.post(
+        f"{API}/documents/{doc_id}/reminders/me",
+        json={
+            "date": date,
+            "time": time,
+            "subject": subject,
+            "message": message,
+            "assign_user": assign_user_ids,
+        },
+        headers=headers,
+    )
+    resp.raise_for_status()
+    return resp.json()
+
+
+def delete_reminder_me(headers: dict, reminder_id: str) -> None:
+    """Delete a reminder via the /me endpoint; silently ignores 404."""
+    httpx.delete(f"{API}/reminders/{reminder_id}/me", headers=headers)
+
+
+def delete_reminder(headers: dict, reminder_id: str) -> None:
+    """Delete a reminder via the global endpoint; silently ignores 404."""
+    httpx.delete(f"{API}/reminders/{reminder_id}", headers=headers)
+
+
 # ── Browser context helper ────────────────────────────────────────────────────
 
 def browser_login(browser: Browser, username: str, password: str) -> tuple[BrowserContext, Page]:

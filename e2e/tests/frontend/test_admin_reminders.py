@@ -1,39 +1,14 @@
 import uuid
 
-import httpx
 from playwright.sync_api import Browser, expect
 
 from pages import RemindersPage
-from tests.api.conftest import API, create_document, delete_document
-from tests.frontend.conftest import browser_login
-
-
-# ── Helpers ───────────────────────────────────────────────────────────────────
-
-def _create_reminder(
-    headers: dict,
-    doc_id: str,
-    assign_user_ids: list[str],
-    subject: str,
-) -> dict:
-    resp = httpx.post(
-        f"{API}/documents/{doc_id}/reminders/me",
-        json={
-            "date": "2030-06-01",
-            "time": "08:00:00",
-            "subject": subject,
-            "message": "FE admin test reminder",
-            "assign_user": assign_user_ids,
-        },
-        headers=headers,
-    )
-    resp.raise_for_status()
-    return resp.json()
-
-
-def _delete_reminder(headers: dict, reminder_id: str) -> None:
-    """Delete via the global endpoint (no /me); silently ignores 404."""
-    httpx.delete(f"{API}/reminders/{reminder_id}", headers=headers)
+from tests.api.conftest import create_document, delete_document
+from tests.frontend.conftest import (
+    browser_login,
+    create_reminder,
+    delete_reminder,
+)
 
 
 def test_admin_sees_all_reminders(
@@ -66,8 +41,8 @@ def test_admin_sees_all_reminders(
     subject_carol = f"Carol Admin Rem FE-030 {uuid.uuid4().hex[:6]}"
     subject_alice = f"Alice Admin Rem FE-030 {uuid.uuid4().hex[:6]}"
 
-    rem_carol = _create_reminder(fe_carol_headers, doc["id"], [fe_alice["id"]], subject_carol)
-    rem_alice = _create_reminder(fe_alice_headers, doc["id"], [fe_carol["id"]], subject_alice)
+    rem_carol = create_reminder(fe_carol_headers, doc["id"], [fe_alice["id"]], subject_carol)
+    rem_alice = create_reminder(fe_alice_headers, doc["id"], [fe_carol["id"]], subject_alice)
 
     ctx, page = browser_login(browser, fe_alice["username"], "Alice123!")
     try:
@@ -79,8 +54,8 @@ def test_admin_sees_all_reminders(
         expect(page.get_by_text(subject_alice)).to_be_visible()
     finally:
         ctx.close()
-        _delete_reminder(fe_alice_headers, rem_carol["id"])
-        _delete_reminder(fe_alice_headers, rem_alice["id"])
+        delete_reminder(fe_alice_headers, rem_carol["id"])
+        delete_reminder(fe_alice_headers, rem_alice["id"])
         delete_document(fe_carol_headers, doc["id"], my=True)
 
 
@@ -113,7 +88,7 @@ def test_admin_updates_reminder(
 
     subject = f"Admin Edit FE-031 {uuid.uuid4().hex[:6]}"
     new_subject = f"Admin Edited FE-031 {uuid.uuid4().hex[:6]}"
-    rem = _create_reminder(fe_alice_headers, doc["id"], [fe_carol["id"]], subject)
+    rem = create_reminder(fe_alice_headers, doc["id"], [fe_carol["id"]], subject)
 
     ctx, page = browser_login(browser, fe_alice["username"], "Alice123!")
     try:
@@ -121,22 +96,18 @@ def test_admin_updates_reminder(
         pom.goto()
         page.wait_for_load_state("networkidle")
 
-        row = page.locator("tbody tr").filter(has_text=subject)
-        row.get_by_title("Edit reminder").click()
+        pom.click_edit(subject)
         page.wait_for_load_state("networkidle")
 
-        # Clear and fill new subject
         page.get_by_placeholder("Enter reminder subject").fill(new_subject)
-
-        # xl modal may overflow the viewport — use JS click
-        page.get_by_role("button", name="Update Reminder").evaluate("el => el.click()")
+        pom.submit_update()
         page.wait_for_load_state("networkidle")
 
         expect(page.get_by_text("Reminder updated successfully")).to_be_visible()
         expect(page.get_by_text(new_subject)).to_be_visible()
     finally:
         ctx.close()
-        _delete_reminder(fe_alice_headers, rem["id"])
+        delete_reminder(fe_alice_headers, rem["id"])
         delete_document(fe_carol_headers, doc["id"], my=True)
 
 
@@ -167,7 +138,7 @@ def test_admin_deletes_reminder(
     )
 
     subject = f"Admin Delete FE-032 {uuid.uuid4().hex[:6]}"
-    rem = _create_reminder(fe_alice_headers, doc["id"], [fe_carol["id"]], subject)
+    rem = create_reminder(fe_alice_headers, doc["id"], [fe_carol["id"]], subject)
 
     ctx, page = browser_login(browser, fe_alice["username"], "Alice123!")
     try:
@@ -175,19 +146,16 @@ def test_admin_deletes_reminder(
         pom.goto()
         page.wait_for_load_state("networkidle")
 
-        row = page.locator("tbody tr").filter(has_text=subject)
-        row.get_by_title("Delete reminder").click()
+        pom.click_delete(subject)
 
-        # Confirmation dialog
         expect(page.get_by_role("heading", name="Delete Reminder")).to_be_visible()
-        # exact=True: "Delete Reminder" (button) vs "Delete reminder" (icon title)
-        page.get_by_role("button", name="Delete Reminder", exact=True).click()
+
+        pom.confirm_delete()
         page.wait_for_load_state("networkidle")
 
         expect(page.get_by_text("Reminder deleted successfully")).to_be_visible()
         expect(page.get_by_text(subject)).not_to_be_visible()
     finally:
         ctx.close()
-        # Already deleted by the test; _delete_reminder silently ignores 404
-        _delete_reminder(fe_alice_headers, rem["id"])
+        delete_reminder(fe_alice_headers, rem["id"])
         delete_document(fe_carol_headers, doc["id"], my=True)
