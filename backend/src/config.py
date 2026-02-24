@@ -26,6 +26,10 @@ class Settings(BaseSettings):
     # Telegram bot token from @BotFather
     TELEGRAM_BOT_TOKEN: str = ""
 
+    OTEL_ENABLED: bool = False
+    OTEL_SERVICE_NAME: str = "drms"
+    OTEL_ENDPOINT: str = "http://localhost:4318"
+
     if os.environ.get("ENV_FILE") == ".env.test":
         model_config = SettingsConfigDict(
             env_file=".env.test", env_file_encoding="utf-8"

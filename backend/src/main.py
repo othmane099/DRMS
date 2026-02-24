@@ -21,6 +21,7 @@ from core.dashboard.api import router as dashboard_router
 from core.documents.api import router as documents_router
 from core.histories.api import router as histories_router
 from core.reminders.api import router as reminders_router
+from telemetry import setup_telemetry
 
 app = FastAPI(
     title=settings.PROJECT_NAME,
@@ -29,6 +30,8 @@ app = FastAPI(
 
 container = Container()
 container.wire(modules=[__name__])
+
+setup_telemetry(app)
 
 app.add_middleware(
     CORSMiddleware,
