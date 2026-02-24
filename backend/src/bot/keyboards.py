@@ -29,10 +29,12 @@ def doc_list_keyboard(docs, page: int, total_pages: int) -> InlineKeyboardMarkup
 
 
 def doc_detail_keyboard(doc_id: str, from_page: str) -> InlineKeyboardMarkup:
-    return InlineKeyboardMarkup([
-        [InlineKeyboardButton("⬇️ Download", callback_data=f"dw:{doc_id}")],
-        [InlineKeyboardButton("◀ Back to list", callback_data=f"d:{from_page}")],
-    ])
+    return InlineKeyboardMarkup(
+        [
+            [InlineKeyboardButton("⬇️ Download", callback_data=f"dw:{doc_id}")],
+            [InlineKeyboardButton("◀ Back to list", callback_data=f"d:{from_page}")],
+        ]
+    )
 
 
 # ── Reminders ──────────────────────────────────────────────────────────────
