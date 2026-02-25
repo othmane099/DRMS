@@ -6,47 +6,12 @@ from typing import Any, TypedDict
 from langchain_core.messages import HumanMessage, SystemMessage
 from langchain_ollama import ChatOllama
 from langgraph.graph import END, START, StateGraph
-from sqlalchemy import text
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from config import settings
 
 logger = logging.getLogger(__name__)
 
 SCORE_THRESHOLD = 7
-
-_db_schema_cache: str | None = None
-
-
-async def fetch_db_schema(session: AsyncSession) -> str:
-    global _db_schema_cache
-    if _db_schema_cache is not None:
-        return _db_schema_cache
-
-    result = await session.execute(
-        text("""
-        SELECT table_name, column_name, data_type
-        FROM information_schema.columns
-        WHERE table_schema = 'public'
-        ORDER BY table_name, ordinal_position
-    """)
-    )
-
-    tables: dict[str, list[str]] = {}
-    for row in result.fetchall():
-        table = str(row.table_name)
-        col = f"{row.column_name} ({row.data_type})"
-        if table not in tables:
-            tables[table] = []
-        tables[table].append(col)
-
-    lines = ["Database tables:"]
-    for table, cols in sorted(tables.items()):
-        lines.append(f"- {table}: {', '.join(cols)}")
-
-    _db_schema_cache = "\n".join(lines)
-    logger.debug("DB schema loaded: %d tables", len(tables))
-    return _db_schema_cache
 
 
 class SearchState(TypedDict):
@@ -69,7 +34,6 @@ def _extract_sql(content: str) -> str:
     match = re.search(r"```(?:sql)?\s*([\s\S]*?)```", content, re.IGNORECASE)
     if match:
         return match.group(1).strip()
-
     select_match = re.search(r"(SELECT\b[\s\S]+)", content, re.IGNORECASE)
     if select_match:
         return select_match.group(1).strip()
@@ -149,37 +113,60 @@ def _route(state: SearchState) -> str:
         state["score"] >= SCORE_THRESHOLD
         or state["iterations"] >= settings.OLLAMA_MAX_ITERATIONS
     ):
-        return "execute"
+        return "done"
     return "sql_agent"
 
 
-def build_search_graph(session: AsyncSession) -> Any:
-    async def executor_node(state: SearchState) -> dict[str, Any]:
-        sql = state["generated_sql"].strip().rstrip(";")
-        if not sql.upper().startswith("SELECT"):
-            logger.warning("Rejected non-SELECT query: %s", sql)
-            return {"rows": []}
-        if "limit" not in sql.lower():
-            sql = f"{sql} LIMIT 100"
-        result = await session.execute(text(sql))
-        rows = [dict(row._mapping) for row in result.fetchall()]
-        logger.info("executor returned %d row(s) for SQL: %s", len(rows), sql)
-        return {"rows": rows}
-
+def _build_sql_graph() -> Any:
     graph: StateGraph = StateGraph(SearchState)
     graph.add_node("sql_agent", sql_agent_node)
     graph.add_node("reviewer", reviewer_node)
-    graph.add_node("executor", executor_node)
-    graph.add_node("formatter", formatter_node)
 
     graph.add_edge(START, "sql_agent")
     graph.add_edge("sql_agent", "reviewer")
     graph.add_conditional_edges(
         "reviewer",
         _route,
-        {"execute": "executor", "sql_agent": "sql_agent"},
+        {"done": END, "sql_agent": "sql_agent"},
     )
-    graph.add_edge("executor", "formatter")
-    graph.add_edge("formatter", END)
 
     return graph.compile()
+
+
+async def generate_sql(
+    message: str,
+    db_schema: str,
+    user_id: str | None = None,
+) -> str:
+    graph = _build_sql_graph()
+    state: SearchState = {
+        "user_message": message,
+        "db_schema": db_schema,
+        "current_user_id": user_id,
+        "generated_sql": "",
+        "score": 0,
+        "feedback": "",
+        "iterations": 0,
+        "rows": [],
+        "message": "",
+    }
+    final_state: SearchState = await graph.ainvoke(state)
+    sql = final_state["generated_sql"].strip().rstrip(";")
+    logger.info("SQL generated in %d iteration(s): %s", final_state["iterations"], sql)
+    return sql
+
+
+async def format_results(message: str, rows: list[dict[str, Any]]) -> str:
+    state: SearchState = {
+        "user_message": message,
+        "db_schema": "",
+        "current_user_id": None,
+        "generated_sql": "",
+        "score": 0,
+        "feedback": "",
+        "iterations": 0,
+        "rows": rows,
+        "message": "",
+    }
+    result = await formatter_node(state)
+    return result["message"]

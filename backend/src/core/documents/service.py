@@ -14,7 +14,7 @@ from pydantic import UUID4
 from starlette import status
 
 from config import settings
-from core.documents.agents import SearchState, build_search_graph, fetch_db_schema
+from core.documents.agents import format_results, generate_sql
 from core.documents.schemas import (
     DocumentCommentCreate,
     DocumentCreate,
@@ -1308,33 +1308,17 @@ class DocumentServiceImpl(DocumentService):
         request: DocumentSearchRequest,
         user_id: UUID4 | None = None,
     ) -> DocumentSearchResponse | Error:
-        logger.info(
-            "Searching documents: %s",
-            request.message,
-        )
+        logger.info("Searching documents: %s", request.message)
+
+        async with self._unit_of_work as uow:
+            db_schema = await uow.document_repository.get_db_schema()
 
         try:
-            async with self._unit_of_work as uow:
-                if uow.session is None:
-                    return Error(
-                        detail="Database session unavailable",
-                        code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                    )
-
-                db_schema = await fetch_db_schema(uow.session)
-                graph = build_search_graph(uow.session)
-                initial_state: SearchState = {
-                    "user_message": request.message,
-                    "db_schema": db_schema,
-                    "current_user_id": str(user_id) if user_id else None,
-                    "generated_sql": "",
-                    "score": 0,
-                    "feedback": "",
-                    "iterations": 0,
-                    "rows": [],
-                    "message": "",
-                }
-                final_state: SearchState = await graph.ainvoke(initial_state)
+            sql = await generate_sql(
+                message=request.message,
+                db_schema=db_schema,
+                user_id=str(user_id) if user_id else None,
+            )
 
         except Exception as e:
             logger.exception("Agent pipeline failed: %s", e)
@@ -1343,5 +1327,17 @@ class DocumentServiceImpl(DocumentService):
                 code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
 
-        logger.info("Search completed in %d iteration(s)", final_state["iterations"])
-        return DocumentSearchResponse(message=final_state["message"])
+        async with self._unit_of_work as uow:
+            rows = await uow.document_repository.execute_search_sql(sql)
+
+        try:
+            message = await format_results(request.message, rows)
+
+        except Exception as e:
+            logger.exception("Agent pipeline failed: %s", e)
+            return Error(
+                detail="Search failed, please try again later",
+                code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+
+        return DocumentSearchResponse(message=message)
