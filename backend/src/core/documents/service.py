@@ -1319,20 +1319,9 @@ class DocumentServiceImpl(DocumentService):
                 db_schema=db_schema,
                 user_id=str(user_id) if user_id else None,
             )
-
-        except Exception as e:
-            logger.exception("Agent pipeline failed: %s", e)
-            return Error(
-                detail="Search failed, please try again later",
-                code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            )
-
-        async with self._unit_of_work as uow:
-            rows = await uow.document_repository.execute_search_sql(sql)
-
-        try:
+            async with self._unit_of_work as uow:
+                rows = await uow.document_repository.execute_search_sql(sql)
             message = await format_results(request.message, rows)
-
         except Exception as e:
             logger.exception("Agent pipeline failed: %s", e)
             return Error(

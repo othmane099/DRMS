@@ -71,7 +71,9 @@ async def sql_agent_node(state: SearchState) -> dict[str, Any]:
     )
     messages = [
         SystemMessage(content=system_prompt),
-        HumanMessage(content=f"User request: {state['user_message']}{feedback_section}"),
+        HumanMessage(
+            content=f"User request: {state['user_message']}{feedback_section}"
+        ),
     ]
     response = await _get_llm().ainvoke(messages)
     sql = _extract_sql(str(response.content))
