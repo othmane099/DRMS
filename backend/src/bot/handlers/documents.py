@@ -10,6 +10,7 @@ from telegram.ext import ContextTypes
 
 from auth.users.service import UserService
 from bot.keyboards import doc_detail_keyboard, doc_list_keyboard, h
+from core.documents.schemas import DocumentSearchRequest
 from core.documents.service import DocumentService
 from schemas import Error
 
@@ -158,3 +159,47 @@ async def documents_callback(
             parse_mode="HTML",
             reply_markup=doc_list_keyboard(result.data, page, result.total_pages),
         )
+
+
+@inject
+async def search_document(
+    update: Update,
+    context: ContextTypes.DEFAULT_TYPE,
+    user_svc: UserService = Provide["user_service"],
+    document_svc: DocumentService = Provide["document_service"],
+) -> None:
+    assert update.effective_chat and update.message
+    query = " ".join(context.args) if context.args else ""
+    if not query:
+        await update.message.reply_text(
+            "Usage: /search <your message>\n"
+            "Example: /search contracts signed last month"
+        )
+        return
+
+    chat_id = update.effective_chat.id
+    user = await user_svc.get_user_by_telegram_chat_id(chat_id)
+    if isinstance(user, Error):
+        await update.message.reply_text(
+            "Please /login first to link your DRMS account."
+        )
+        return
+
+    user_id = user.id
+    if "documents.search" in [p.code for p in user.role.permissions]:
+        user_id = None
+    await update.message.reply_text("🔍 Searching…")
+
+    result = await document_svc.search_documents(
+        DocumentSearchRequest(message=query),
+        user_id=user_id,
+    )
+
+    if isinstance(result, Error):
+        await update.message.reply_text(f"Search failed: {h(result.detail)}")
+        return
+
+    await update.message.reply_text(
+        f"🔍 <b>Search results</b>\n\n{h(result.message)}",
+        parse_mode="HTML",
+    )

@@ -1,5 +1,7 @@
+import logging
 import os
 import sys
+from pathlib import Path
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -23,6 +25,8 @@ from core.histories.api import router as histories_router
 from core.reminders.api import router as reminders_router
 from telemetry import setup_telemetry
 
+logging_config_path = Path(__file__).parent / "logging.ini"
+logging.getLogger().setLevel(settings.LOG_LEVEL)
 app = FastAPI(
     title=settings.PROJECT_NAME,
     debug=settings.is_debug,

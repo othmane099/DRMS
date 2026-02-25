@@ -163,9 +163,7 @@ class DocumentService(Protocol):
     ) -> UUID4 | Error: ...
 
     async def search_documents(
-        self,
-        request: DocumentSearchRequest,
-        user_id: UUID4 | None = None
+        self, request: DocumentSearchRequest, user_id: UUID4 | None = None
     ) -> DocumentSearchResponse | Error: ...
 
 

@@ -23,12 +23,14 @@ async def fetch_db_schema(session: AsyncSession) -> str:
     if _db_schema_cache is not None:
         return _db_schema_cache
 
-    result = await session.execute(text("""
+    result = await session.execute(
+        text("""
         SELECT table_name, column_name, data_type
         FROM information_schema.columns
         WHERE table_schema = 'public'
         ORDER BY table_name, ordinal_position
-    """))
+    """)
+    )
 
     tables: dict[str, list[str]] = {}
     for row in result.fetchall():
@@ -50,7 +52,7 @@ async def fetch_db_schema(session: AsyncSession) -> str:
 class SearchState(TypedDict):
     user_message: str
     db_schema: str
-    current_user_id: str | None   # None = search all, str = filter to this user
+    current_user_id: str | None  # None = search all, str = filter to this user
     generated_sql: str
     score: int
     feedback: str
@@ -67,6 +69,10 @@ def _extract_sql(content: str) -> str:
     match = re.search(r"```(?:sql)?\s*([\s\S]*?)```", content, re.IGNORECASE)
     if match:
         return match.group(1).strip()
+
+    select_match = re.search(r"(SELECT\b[\s\S]+)", content, re.IGNORECASE)
+    if select_match:
+        return select_match.group(1).strip()
     return content.strip()
 
 
@@ -87,8 +93,8 @@ async def sql_agent_node(state: SearchState) -> dict[str, Any]:
         if state["generated_sql"]
         else ""
     )
-    scope_constraint = (
-        f"\nScope (MANDATORY): only include documents where "
+    scope_section = (
+        f"\nScope (MANDATORY): Only include documents where "
         f"d.assigned_to = '{state['current_user_id']}'::uuid "
         f"OR d.created_by = '{state['current_user_id']}'::uuid"
         if state["current_user_id"]
@@ -98,14 +104,14 @@ async def sql_agent_node(state: SearchState) -> dict[str, Any]:
         SystemMessage(
             content=f"""You are a PostgreSQL expert. Convert the user's request into a valid SELECT query.
 
-{state['db_schema']}
+{state["db_schema"]}
 
 Rules:
 - Output ONLY the raw SQL query, no markdown, no explanation
 - Only SELECT statements
 - Always include LIMIT 100 unless the user specifies a number
-- Use JOINs when related data is needed
-- {scope_constraint}"""
+- Use LEFT JOINs (never INNER JOIN)
+- Never select UUID columns in the output{scope_section}"""
         ),
         HumanMessage(
             content=f"User request: {state['user_message']}{feedback_section}"
@@ -156,7 +162,10 @@ Be informative but brief."""
 
 
 def _route(state: SearchState) -> str:
-    if state["score"] >= SCORE_THRESHOLD or state["iterations"] >= settings.OLLAMA_MAX_ITERATIONS:
+    if (
+        state["score"] >= SCORE_THRESHOLD
+        or state["iterations"] >= settings.OLLAMA_MAX_ITERATIONS
+    ):
         return "execute"
     return "sql_agent"
 

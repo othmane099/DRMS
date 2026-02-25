@@ -1141,6 +1141,7 @@ async def search_documents(
 
     return result
 
+
 @router.post(
     "/documents/search/me",
     response_model=DocumentSearchResponse,
