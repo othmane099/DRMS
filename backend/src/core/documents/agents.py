@@ -17,6 +17,26 @@ SCORE_THRESHOLD = 7
 
 _db_schema_cache: str | None = None
 
+_SQL_AGENT_RULES = (
+    "- Output ONLY the raw SQL query, no markdown, no explanation\n"
+    "- Only SELECT statements\n"
+    "- Always include LIMIT 100 unless the user specifies a number\n"
+    "- Use LEFT JOINs (never INNER JOIN)\n"
+    "- Never select UUID columns in the output"
+)
+
+_REVIEWER_SYSTEM_PROMPT = (
+    "You are a SQL reviewer. Evaluate the query for correctness, safety, and relevance.\n\n"
+    "Score 0-10 (7+ is acceptable).\n"
+    'Respond with ONLY valid JSON: {"score": <number>, "feedback": "<one sentence>"}'
+)
+
+_FORMATTER_SYSTEM_PROMPT = (
+    "You are a helpful assistant. Summarize database query results "
+    "into a clear, concise natural language response for the user. "
+    "Be informative but brief."
+)
+
 
 async def fetch_db_schema(session: AsyncSession) -> str:
     global _db_schema_cache
@@ -100,22 +120,14 @@ async def sql_agent_node(state: SearchState) -> dict[str, Any]:
         if state["current_user_id"]
         else ""
     )
+    system_prompt = (
+        f"You are a PostgreSQL expert. Convert the user's request into a valid SELECT query.\n\n"
+        f"{state['db_schema']}\n\n"
+        f"Rules:\n{_SQL_AGENT_RULES}{scope_section}"
+    )
     messages = [
-        SystemMessage(
-            content=f"""You are a PostgreSQL expert. Convert the user's request into a valid SELECT query.
-
-{state["db_schema"]}
-
-Rules:
-- Output ONLY the raw SQL query, no markdown, no explanation
-- Only SELECT statements
-- Always include LIMIT 100 unless the user specifies a number
-- Use LEFT JOINs (never INNER JOIN)
-- Never select UUID columns in the output{scope_section}"""
-        ),
-        HumanMessage(
-            content=f"User request: {state['user_message']}{feedback_section}"
-        ),
+        SystemMessage(content=system_prompt),
+        HumanMessage(content=f"User request: {state['user_message']}{feedback_section}"),
     ]
     response = await _get_llm().ainvoke(messages)
     sql = _extract_sql(str(response.content))
@@ -125,12 +137,7 @@ Rules:
 
 async def reviewer_node(state: SearchState) -> dict[str, Any]:
     messages = [
-        SystemMessage(
-            content="""You are a SQL reviewer. Evaluate the query for correctness, safety, and relevance.
-
-Score 0-10 (7+ is acceptable).
-Respond with ONLY valid JSON: {"score": <number>, "feedback": "<one sentence>"}"""
-        ),
+        SystemMessage(content=_REVIEWER_SYSTEM_PROMPT),
         HumanMessage(
             content=f"User request: {state['user_message']}\n\nSQL:\n{state['generated_sql']}"
         ),
@@ -148,11 +155,7 @@ async def formatter_node(state: SearchState) -> dict[str, Any]:
 
     rows_text = json.dumps(rows[:20], default=str, indent=2)
     messages = [
-        SystemMessage(
-            content="""You are a helpful assistant. Summarize database query results
-into a clear, concise natural language response for the user.
-Be informative but brief."""
-        ),
+        SystemMessage(content=_FORMATTER_SYSTEM_PROMPT),
         HumanMessage(
             content=f"User request: {state['user_message']}\n\nResults ({len(rows)} rows):\n{rows_text}"
         ),
