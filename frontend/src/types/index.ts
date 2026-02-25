@@ -322,6 +322,10 @@ export interface DocumentUpdateInput {
   tag_ids?: string[];
 }
 
+export interface DocumentSearchResponse {
+  message: string;
+}
+
 export interface DocumentFilters {
   category_id?: string;
   stage_id?: string;

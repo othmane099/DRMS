@@ -13,6 +13,8 @@ from core.documents.schemas import (
     DocumentCommentResponse,
     DocumentCreate,
     DocumentResponse,
+    DocumentSearchRequest,
+    DocumentSearchResponse,
     DocumentUpdate,
     PaginatedDocumentResponse,
     ShareDocumentCreate,
@@ -1119,3 +1121,41 @@ async def get_document_reminders(
         raise HTTPException(status_code=result.code, detail=result.detail)
 
     return [ReminderResponse.model_validate(reminder) for reminder in result]
+
+
+@router.post(
+    "/documents/search",
+    response_model=DocumentSearchResponse,
+    dependencies=[Depends(require_permission("documents.search"))],
+    description="Required permission: documents.search",
+)
+@inject
+async def search_documents(
+    request: DocumentSearchRequest,
+    document_service: DocumentService = Depends(Provide["document_service"]),
+) -> DocumentSearchResponse:
+    result = await document_service.search_documents(request)
+
+    if isinstance(result, Error):
+        raise HTTPException(status_code=result.code or 500, detail=result.detail)
+
+    return result
+
+@router.post(
+    "/documents/search/me",
+    response_model=DocumentSearchResponse,
+    dependencies=[Depends(require_permission("documents.search_my"))],
+    description="Required permission: documents.search_my",
+)
+@inject
+async def search_my_documents(
+    request: DocumentSearchRequest,
+    current_user: CurrentUser,
+    document_service: DocumentService = Depends(Provide["document_service"]),
+) -> DocumentSearchResponse:
+    result = await document_service.search_documents(request, user_id=current_user.id)
+
+    if isinstance(result, Error):
+        raise HTTPException(status_code=result.code or 500, detail=result.detail)
+
+    return result

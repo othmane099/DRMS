@@ -47,6 +47,7 @@ import {
   ShareLinkResponse,
   DocumentReminder,
   DashboardResponse, UserBasicId, PasswordUpdate, Message,
+  DocumentSearchResponse,
 } from '@/types';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
@@ -1082,6 +1083,20 @@ class ApiClient {
     }
     const query = params.toString();
     return this.request<DashboardResponse>(`/api/v1/dashboard${query ? `?${query}` : ''}`);
+  }
+
+  async searchDocuments(message: string): Promise<DocumentSearchResponse> {
+    return this.request<DocumentSearchResponse>('/api/v1/documents/search', {
+      method: 'POST',
+      body: JSON.stringify({ message }),
+    });
+  }
+
+  async searchMyDocuments(message: string): Promise<DocumentSearchResponse> {
+    return this.request<DocumentSearchResponse>('/api/v1/documents/search/me', {
+      method: 'POST',
+      body: JSON.stringify({ message }),
+    });
   }
 }
 

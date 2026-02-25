@@ -1,5 +1,5 @@
 from datetime import date, datetime
-from typing import Annotated
+from typing import Annotated, Any
 
 from pydantic import UUID4, BaseModel, ConfigDict, Field
 
@@ -122,3 +122,11 @@ class ShareLinkResponse(BaseModel):
 
 class ShareLinkAccessRequest(BaseModel):
     password: str | None = None
+
+
+class DocumentSearchRequest(BaseModel):
+    message: Annotated[str, Field(min_length=1)]
+
+
+class DocumentSearchResponse(BaseModel):
+    message: str

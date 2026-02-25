@@ -14,10 +14,13 @@ from pydantic import UUID4
 from starlette import status
 
 from config import settings
+from core.documents.agents import SearchState, build_search_graph, fetch_db_schema
 from core.documents.schemas import (
     DocumentCommentCreate,
     DocumentCreate,
     DocumentResponse,
+    DocumentSearchRequest,
+    DocumentSearchResponse,
     DocumentUpdate,
     PaginatedDocumentResponse,
     ShareDocumentCreate,
@@ -158,6 +161,12 @@ class DocumentService(Protocol):
         token: str,
         password: str | None = None,
     ) -> UUID4 | Error: ...
+
+    async def search_documents(
+        self,
+        request: DocumentSearchRequest,
+        user_id: UUID4 | None = None
+    ) -> DocumentSearchResponse | Error: ...
 
 
 class DocumentServiceImpl(DocumentService):
@@ -1295,3 +1304,46 @@ class DocumentServiceImpl(DocumentService):
 
         logger.info("Share link validated successfully (document_id=%s)", document_id)
         return document_id
+
+    async def search_documents(
+        self,
+        request: DocumentSearchRequest,
+        user_id: UUID4 | None = None,
+    ) -> DocumentSearchResponse | Error:
+        logger.info(
+            "Searching documents: %s",
+            request.message,
+        )
+
+        try:
+            async with self._unit_of_work as uow:
+                if uow.session is None:
+                    return Error(
+                        detail="Database session unavailable",
+                        code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    )
+
+                db_schema = await fetch_db_schema(uow.session)
+                graph = build_search_graph(uow.session)
+                initial_state: SearchState = {
+                    "user_message": request.message,
+                    "db_schema": db_schema,
+                    "current_user_id": str(user_id) if user_id else None,
+                    "generated_sql": "",
+                    "score": 0,
+                    "feedback": "",
+                    "iterations": 0,
+                    "rows": [],
+                    "message": "",
+                }
+                final_state: SearchState = await graph.ainvoke(initial_state)
+
+        except Exception as e:
+            logger.exception("Agent pipeline failed: %s", e)
+            return Error(
+                detail="Search failed, please try again later",
+                code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+
+        logger.info("Search completed in %d iteration(s)", final_state["iterations"])
+        return DocumentSearchResponse(message=final_state["message"])

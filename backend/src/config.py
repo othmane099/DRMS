@@ -26,6 +26,10 @@ class Settings(BaseSettings):
     # Telegram bot token from @BotFather
     TELEGRAM_BOT_TOKEN: str = ""
 
+    OLLAMA_HOST: str = "http://localhost:11434"
+    OLLAMA_MODEL: str = "llama3:8b"
+    OLLAMA_MAX_ITERATIONS: int = 3
+
     OTEL_ENABLED: bool = False
     OTEL_SERVICE_NAME: str = "drms"
     OTEL_ENDPOINT: str = "http://localhost:4318"
