@@ -17,7 +17,7 @@ export default function DocumentDetailPage() {
         edit: 'documents.update',
         viewVersion: 'documents.view_version',
         createVersion: 'documents.create_version',
-        viewComments: 'comments.view',
+        viewComments: 'comments.list',
         createComment: 'comments.create',
         share: 'documents.share',
         viewShared: 'documents.view',
