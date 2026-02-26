@@ -14,7 +14,7 @@ from pydantic import UUID4
 from starlette import status
 
 from config import settings
-from core.documents.agents import format_results, generate_sql, validate_sql_tables
+from core.documents.agents import extract_filters, format_results
 from core.documents.schemas import (
     DocumentCommentCreate,
     DocumentCreate,
@@ -1310,37 +1310,24 @@ class DocumentServiceImpl(DocumentService):
     ) -> DocumentSearchResponse | Error:
         logger.info("Searching documents: %s", request.message)
 
-        async with self._unit_of_work as uow:
-            db_schema = await uow.document_repository.get_db_schema()
         try:
-            sql = await generate_sql(
-                message=request.message,
-                db_schema=db_schema,
-                user_id=str(user_id) if user_id else None,
-            )
-        except Exception as e:
-            logger.exception("Agent pipeline failed: %s", e)
+            filters = await extract_filters(request.message)
+        except Exception:
+            logger.exception("Filter extraction failed")
             return Error(
                 detail="Search failed, please try again later",
                 code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
 
-        if not validate_sql_tables(sql):
-            logger.warning(
-                "Generated SQL references disallowed tables, rejecting: %s", sql
-            )
-            return Error(
-                detail="Search query is not related to documents",
-                code=status.HTTP_400_BAD_REQUEST,
-            )
-
         async with self._unit_of_work as uow:
-            rows = await uow.document_repository.execute_search_sql(sql)
+            rows = await uow.document_repository.search_documents_with_filters(
+                filters, user_id
+            )
 
         try:
             message = await format_results(request.message, rows)
-        except Exception as e:
-            logger.exception("Agent pipeline failed: %s", e)
+        except Exception:
+            logger.exception("Result formatting failed")
             return Error(
                 detail="Search failed, please try again later",
                 code=status.HTTP_500_INTERNAL_SERVER_ERROR,
