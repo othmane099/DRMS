@@ -1312,15 +1312,23 @@ class DocumentServiceImpl(DocumentService):
 
         async with self._unit_of_work as uow:
             db_schema = await uow.document_repository.get_db_schema()
-
         try:
             sql = await generate_sql(
                 message=request.message,
                 db_schema=db_schema,
                 user_id=str(user_id) if user_id else None,
             )
-            async with self._unit_of_work as uow:
-                rows = await uow.document_repository.execute_search_sql(sql)
+        except Exception as e:
+            logger.exception("Agent pipeline failed: %s", e)
+            return Error(
+                detail="Search failed, please try again later",
+                code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+
+        async with self._unit_of_work as uow:
+            rows = await uow.document_repository.execute_search_sql(sql)
+
+        try:
             message = await format_results(request.message, rows)
         except Exception as e:
             logger.exception("Agent pipeline failed: %s", e)
