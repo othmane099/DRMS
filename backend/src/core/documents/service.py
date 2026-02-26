@@ -9,12 +9,13 @@ from uuid import UUID
 
 from cryptography.fernet import Fernet, InvalidToken
 from dependency_injector.wiring import Provide, inject
-from fastapi import UploadFile
+from fastapi import BackgroundTasks, UploadFile
 from pydantic import UUID4
+from sqlalchemy import select
 from starlette import status
 
 from config import settings
-from core.documents.agents import extract_filters, format_results
+from core.documents.agents import extract_filters, format_results, generate_summary
 from core.documents.schemas import (
     DocumentCommentCreate,
     DocumentCreate,
@@ -26,18 +27,68 @@ from core.documents.schemas import (
     ShareDocumentCreate,
     ShareLinkCreate,
 )
+from core.documents.text_extractor import extract_text
 from core.models import (
     Document,
     DocumentComment,
     ShareDocument,
     VersionHistory,
 )
+from db import async_session
 from schemas import Error, Message
 from unit_of_work.uow import UnitOfWork
 
 logger = logging.getLogger(__name__)
 
 UPLOAD_DIR = Path(settings.UPLOAD_DIR)
+
+
+async def _run_document_summary(version_id: UUID, document_name: str) -> None:
+    logger.info(
+        "Summary task started (version_id=%s, document=%r)", version_id, document_name
+    )
+    try:
+        async with async_session() as session:
+            result = await session.execute(
+                select(VersionHistory).where(VersionHistory.id == version_id)
+            )
+            version = result.scalars().first()
+            if not version:
+                logger.warning("Summary task: version not found (version_id=%s)", version_id)
+                return
+
+            logger.debug(
+                "Summary task: extracting text from %s", version.document_file
+            )
+            text = await extract_text(version.document_file)
+            if not text:
+                logger.info(
+                    "Summary task: skipped — no extractable text (version_id=%s, file=%s)",
+                    version_id,
+                    version.document_file,
+                )
+                return
+
+            logger.debug(
+                "Summary task: generating summary (%d chars) for %r",
+                len(text),
+                document_name,
+            )
+            summary = await generate_summary(text, document_name)
+            version.summary = summary
+            await session.commit()
+            logger.info(
+                "Summary task completed (version_id=%s, document=%r, summary_len=%d)",
+                version_id,
+                document_name,
+                len(summary),
+            )
+    except Exception:
+        logger.exception(
+            "Summary task failed (version_id=%s, document=%r)", version_id, document_name
+        )
+
+
 ALLOWED_EXTENSIONS = {
     "pdf",
     "doc",
@@ -72,6 +123,7 @@ class DocumentService(Protocol):
         document_create: DocumentCreate,
         document_file: UploadFile,
         current_user_id: UUID,
+        background_tasks: BackgroundTasks | None = None,
     ) -> Document | Error: ...
 
     async def update_document(
@@ -104,6 +156,7 @@ class DocumentService(Protocol):
         document_file: UploadFile,
         current_user_id: UUID4,
         user_id: UUID4 | None = None,
+        background_tasks: BackgroundTasks | None = None,
     ) -> VersionHistory | Error: ...
 
     async def get_version_file_path(
@@ -242,6 +295,7 @@ class DocumentServiceImpl(DocumentService):
         document_create: DocumentCreate,
         document_file: UploadFile,
         current_user_id: UUID,
+        background_tasks: BackgroundTasks | None = None,
     ) -> Document | Error:
         logger.info("Creating document (name=%s)", document_create.name)
 
@@ -360,9 +414,15 @@ class DocumentServiceImpl(DocumentService):
 
             await uow.commit()
 
+            version_id = version.id
+            doc_name = document.name
+
             created_document = await uow.document_repository.get_document_by_id(
                 document.id
             )
+
+        if background_tasks is not None:
+            background_tasks.add_task(_run_document_summary, version_id, doc_name)
 
         logger.info(
             "Document created successfully (id=%s, name=%s)",
@@ -655,6 +715,7 @@ class DocumentServiceImpl(DocumentService):
         document_file: UploadFile,
         current_user_id: UUID4,
         user_id: UUID4 | None = None,
+        background_tasks: BackgroundTasks | None = None,
     ) -> VersionHistory | Error:
         logger.info("Creating new version (document_id=%s)", document_id)
 
@@ -727,7 +788,13 @@ class DocumentServiceImpl(DocumentService):
                 created_by=current_user_id,
             )
 
+            version_id = version.id
+            doc_name = document.name
+
             await uow.commit()
+
+        if background_tasks is not None:
+            background_tasks.add_task(_run_document_summary, version_id, doc_name)
 
         logger.info(
             "New version created successfully (document_id=%s, version=%d)",

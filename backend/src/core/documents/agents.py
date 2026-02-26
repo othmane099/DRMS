@@ -4,7 +4,10 @@ import re
 from typing import Any, TypedDict
 
 from langchain_core.messages import HumanMessage, SystemMessage
+from langchain_core.output_parsers import StrOutputParser
+from langchain_core.prompts import PromptTemplate
 from langchain_ollama import ChatOllama
+from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langgraph.graph import END, START, StateGraph
 
 from config import settings
@@ -178,6 +181,67 @@ async def extract_filters(message: str) -> DocumentSearchFilters:
         "Filter extraction failed for message=%r, returning empty filters", message
     )
     return DocumentSearchFilters()
+
+
+_CHUNK_SIZE = 4_000
+_CHUNK_OVERLAP = 200
+
+_splitter = RecursiveCharacterTextSplitter(
+    chunk_size=_CHUNK_SIZE,
+    chunk_overlap=_CHUNK_OVERLAP,
+)
+
+
+async def generate_summary(text: str, document_name: str) -> str:
+    llm = _get_llm()
+    docs = _splitter.create_documents([text])
+
+    if len(docs) == 1:
+        chain = (
+            PromptTemplate(
+                input_variables=["text"],
+                template=(
+                    f'Summarize the document "{document_name}" in 2-4 sentences.\n'
+                    "Focus on the main topics, key information, and purpose.\n"
+                    "Output ONLY the summary text.\n\n{text}"
+                ),
+            )
+            | llm
+            | StrOutputParser()
+        )
+        return await chain.ainvoke({"text": text})
+
+    logger.debug("generate_summary: %d chunks for %r", len(docs), document_name)
+
+    # Map: summarize each chunk
+    map_chain = (
+        PromptTemplate(
+            input_variables=["text"],
+            template="Summarize the key points from this excerpt in 1-2 sentences:\n\n{text}",
+        )
+        | llm
+        | StrOutputParser()
+    )
+    chunk_summaries = []
+    for doc in docs:
+        summary = await map_chain.ainvoke({"text": doc.page_content})
+        chunk_summaries.append(summary.strip())
+
+    # Reduce: combine chunk summaries into final summary
+    combine_chain = (
+        PromptTemplate(
+            input_variables=["text"],
+            template=(
+                f'You are summarizing the document "{document_name}".\n'
+                "Given these partial summaries, write a final concise 2-4 sentence summary "
+                "covering the main topics, key information, and purpose.\n"
+                "Output ONLY the summary text.\n\n{text}"
+            ),
+        )
+        | llm
+        | StrOutputParser()
+    )
+    return await combine_chain.ainvoke({"text": "\n\n".join(chunk_summaries)})
 
 
 async def format_results(message: str, rows: list[dict[str, Any]]) -> str:

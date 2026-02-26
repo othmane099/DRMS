@@ -344,6 +344,7 @@ export interface DocumentVersion {
   version_number: number;
   is_current: boolean;
   created_by: string; // UUID
+  summary?: string | null;
   created_at: string;
   creator?: {
     username: string;
@@ -357,6 +358,7 @@ export interface VersionHistoryResponse {
   version_number: number;
   is_current: boolean;
   created_by: string; // UUID
+  summary?: string | null;
   created_at: string;
   creator?: {
     username: string;
