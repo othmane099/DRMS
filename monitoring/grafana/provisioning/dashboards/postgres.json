@@ -1,0 +1,155 @@
+{
+  "title": "DRMS PostgreSQL",
+  "uid": "drms-postgres",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "30s",
+  "time": { "from": "now-1h", "to": "now" },
+  "panels": [
+    {
+      "id": 1,
+      "title": "Active Connections",
+      "type": "timeseries",
+      "gridPos": { "x": 0, "y": 0, "w": 8, "h": 7 },
+      "targets": [
+        {
+          "datasource": "Prometheus",
+          "expr": "pg_stat_database_numbackends{job=\"drms-postgres\", datname=\"postgres\"}",
+          "legendFormat": "connections"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": { "unit": "short", "color": { "fixedColor": "blue", "mode": "fixed" } }
+      }
+    },
+    {
+      "id": 2,
+      "title": "Transactions per Second",
+      "type": "timeseries",
+      "gridPos": { "x": 8, "y": 0, "w": 8, "h": 7 },
+      "targets": [
+        {
+          "datasource": "Prometheus",
+          "expr": "rate(pg_stat_database_xact_commit{job=\"drms-postgres\", datname=\"postgres\"}[1m])",
+          "legendFormat": "commits/s"
+        },
+        {
+          "datasource": "Prometheus",
+          "expr": "rate(pg_stat_database_xact_rollback{job=\"drms-postgres\", datname=\"postgres\"}[1m])",
+          "legendFormat": "rollbacks/s"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": { "unit": "ops", "color": { "mode": "palette-classic" } }
+      }
+    },
+    {
+      "id": 3,
+      "title": "Database Size",
+      "type": "stat",
+      "gridPos": { "x": 16, "y": 0, "w": 8, "h": 7 },
+      "targets": [
+        {
+          "datasource": "Prometheus",
+          "expr": "pg_database_size_bytes{job=\"drms-postgres\", datname=\"postgres\"}",
+          "legendFormat": "size"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": { "unit": "bytes", "color": { "fixedColor": "green", "mode": "fixed" } }
+      }
+    },
+    {
+      "id": 4,
+      "title": "Cache Hit Ratio",
+      "type": "timeseries",
+      "gridPos": { "x": 0, "y": 7, "w": 12, "h": 7 },
+      "targets": [
+        {
+          "datasource": "Prometheus",
+          "expr": "rate(pg_stat_database_blks_hit{job=\"drms-postgres\", datname=\"postgres\"}[1m]) / (rate(pg_stat_database_blks_hit{job=\"drms-postgres\", datname=\"postgres\"}[1m]) + rate(pg_stat_database_blks_read{job=\"drms-postgres\", datname=\"postgres\"}[1m]))",
+          "legendFormat": "hit ratio"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "min": 0,
+          "max": 1,
+          "color": { "fixedColor": "green", "mode": "fixed" },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "red", "value": null },
+              { "color": "yellow", "value": 0.9 },
+              { "color": "green", "value": 0.99 }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": 5,
+      "title": "Row Operations per Second",
+      "type": "timeseries",
+      "gridPos": { "x": 12, "y": 7, "w": 12, "h": 7 },
+      "targets": [
+        {
+          "datasource": "Prometheus",
+          "expr": "rate(pg_stat_database_tup_inserted{job=\"drms-postgres\", datname=\"postgres\"}[1m])",
+          "legendFormat": "inserts/s"
+        },
+        {
+          "datasource": "Prometheus",
+          "expr": "rate(pg_stat_database_tup_updated{job=\"drms-postgres\", datname=\"postgres\"}[1m])",
+          "legendFormat": "updates/s"
+        },
+        {
+          "datasource": "Prometheus",
+          "expr": "rate(pg_stat_database_tup_deleted{job=\"drms-postgres\", datname=\"postgres\"}[1m])",
+          "legendFormat": "deletes/s"
+        },
+        {
+          "datasource": "Prometheus",
+          "expr": "rate(pg_stat_database_tup_fetched{job=\"drms-postgres\", datname=\"postgres\"}[1m])",
+          "legendFormat": "fetched/s"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": { "unit": "ops", "color": { "mode": "palette-classic" } }
+      }
+    },
+    {
+      "id": 6,
+      "title": "Locks",
+      "type": "timeseries",
+      "gridPos": { "x": 0, "y": 14, "w": 12, "h": 7 },
+      "targets": [
+        {
+          "datasource": "Prometheus",
+          "expr": "sum by (mode) (pg_locks_count{job=\"drms-postgres\", datname=\"postgres\"})",
+          "legendFormat": "{{mode}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": { "unit": "short", "color": { "mode": "palette-classic" } }
+      }
+    },
+    {
+      "id": 7,
+      "title": "Deadlocks",
+      "type": "timeseries",
+      "gridPos": { "x": 12, "y": 14, "w": 12, "h": 7 },
+      "targets": [
+        {
+          "datasource": "Prometheus",
+          "expr": "rate(pg_stat_database_deadlocks{job=\"drms-postgres\", datname=\"postgres\"}[1m])",
+          "legendFormat": "deadlocks/s"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": { "unit": "ops", "color": { "fixedColor": "red", "mode": "fixed" } }
+      }
+    }
+  ]
+}

@@ -1,3 +1,7 @@
+// Common types
+export interface Message {
+  detail: string;
+}
 // User types
 export interface User {
   id: string; // UUID
@@ -9,7 +13,6 @@ export interface User {
   is_active: boolean;
   is_superuser?: boolean;
   last_login?: string;
-  role_id?: string | null; // UUID
   role?: RoleWithPermissions | null;
   custom_permissions?: (Permission | string)[]; // Can be array of Permission objects or permission code strings
   created_at?: string;
@@ -261,6 +264,11 @@ export interface BulkAction {
   };
 }
 
+export interface PasswordUpdate {
+  current_password: string;
+  new_password: string;
+}
+
 // Document types
 export interface Document {
   id: string; // UUID
@@ -312,6 +320,10 @@ export interface DocumentUpdateInput {
   assigned_to: string;
   description?: string;
   tag_ids?: string[];
+}
+
+export interface DocumentSearchResponse {
+  message: string;
 }
 
 export interface DocumentFilters {

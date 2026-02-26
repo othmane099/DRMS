@@ -122,3 +122,11 @@ class ShareLinkResponse(BaseModel):
 
 class ShareLinkAccessRequest(BaseModel):
     password: str | None = None
+
+
+class DocumentSearchRequest(BaseModel):
+    message: Annotated[str, Field(min_length=1)]
+
+
+class DocumentSearchResponse(BaseModel):
+    message: str

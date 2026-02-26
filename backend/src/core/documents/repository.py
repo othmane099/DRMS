@@ -1,9 +1,9 @@
 from datetime import date
-from typing import Protocol
+from typing import Any, Protocol
 from uuid import UUID
 
 from pydantic import UUID4
-from sqlalchemy import and_, exists, func, or_, select
+from sqlalchemy import and_, exists, func, or_, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -108,6 +108,10 @@ class DocumentRepository(Protocol):
     async def get_documents_by_category(self) -> list[tuple[str, int]]: ...
 
     async def get_documents_by_subcategory(self) -> list[tuple[str, int]]: ...
+
+    async def get_db_schema(self) -> str: ...
+
+    async def execute_search_sql(self, sql: str) -> list[dict[str, Any]]: ...
 
 
 class DocumentRepositoryImpl(DocumentRepository):
@@ -548,3 +552,28 @@ class DocumentRepositoryImpl(DocumentRepository):
             .order_by(func.count(Document.id).desc())
         )
         return [(row[0], row[1]) for row in result.all()]
+
+    async def get_db_schema(self) -> str:
+        result = await self.session.execute(
+            text("""
+            SELECT table_name, column_name, data_type
+            FROM information_schema.columns
+            WHERE table_schema = 'public'
+            ORDER BY table_name, ordinal_position
+            """)
+        )
+        tables: dict[str, list[str]] = {}
+        for row in result.fetchall():
+            table = str(row.table_name)
+            col = f"{row.column_name} ({row.data_type})"
+            if table not in tables:
+                tables[table] = []
+            tables[table].append(col)
+        lines = ["Database tables:"]
+        for table, cols in sorted(tables.items()):
+            lines.append(f"- {table}: {', '.join(cols)}")
+        return "\n".join(lines)
+
+    async def execute_search_sql(self, sql: str) -> list[dict[str, Any]]:
+        result = await self.session.execute(text(sql))
+        return [dict(row._mapping) for row in result.fetchall()]

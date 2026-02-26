@@ -14,6 +14,7 @@ from auth.users.schemas import (
     BulkActionResponse,
     BulkUserAction,
     PaginatedUserResponse,
+    PasswordUpdate,
     PermissionBasicResponse,
     UserCreate,
     UserPermissionsResponse,
@@ -76,6 +77,16 @@ class UserService(Protocol):
     async def update_user_permissions(
         self, user_id: UUID, permissions_update: UserPermissionsUpdate
     ) -> UserPermissionsResponse | Error: ...
+
+    async def update_password(
+        self, user_id: UUID, password_update: PasswordUpdate
+    ) -> Message | Error: ...
+
+    async def get_user_by_telegram_chat_id(self, chat_id: int) -> User | Error: ...
+
+    async def link_telegram(self, user_id: UUID4, chat_id: int) -> Message | Error: ...
+
+    async def unlink_telegram(self, chat_id: int) -> Message | Error: ...
 
 
 class UserServiceImpl(UserService):
@@ -569,3 +580,58 @@ class UserServiceImpl(UserService):
             role_permissions=role_permissions,
             custom_permissions=custom_permissions,
         )
+
+    async def update_password(
+        self, user_id: UUID, password_update: PasswordUpdate
+    ) -> Message | Error:
+        logger.info("Updating password for user (id=%s)", user_id)
+
+        async with self._unit_of_work as uow:
+            user = await uow.user_repository.get_user_by_id(user_id)
+            if not user:
+                logger.warning(
+                    "Password update failed: user not found (id=%s)", user_id
+                )
+                return Error(detail="User not found", code=status.HTTP_404_NOT_FOUND)
+
+            if not pbkdf2_sha256.verify(
+                password_update.current_password, str(user.password)
+            ):
+                logger.warning(
+                    "Password update failed: incorrect current password (id=%s)",
+                    user_id,
+                )
+                return Error(
+                    detail="Current password is incorrect",
+                    code=status.HTTP_400_BAD_REQUEST,
+                )
+
+            user.password = pbkdf2_sha256.hash(password_update.new_password)
+            await uow.commit()
+
+        logger.info("Password updated successfully (id=%s)", user_id)
+        return Message(detail="Password updated successfully")
+
+    async def get_user_by_telegram_chat_id(self, chat_id: int) -> User | Error:
+        logger.debug("Fetching user by telegram_chat_id=%s", chat_id)
+        async with self._unit_of_work as uow:
+            user = await uow.user_repository.get_user_by_telegram_chat_id(chat_id)
+        if not user:
+            return Error(
+                detail="Telegram account not linked", code=status.HTTP_404_NOT_FOUND
+            )
+        return user
+
+    async def link_telegram(self, user_id: UUID4, chat_id: int) -> Message | Error:
+        logger.info("Linking telegram_chat_id=%s to user_id=%s", chat_id, user_id)
+        async with self._unit_of_work as uow:
+            await uow.user_repository.link_telegram(user_id, chat_id)
+            await uow.commit()
+        return Message(detail="Telegram account linked successfully")
+
+    async def unlink_telegram(self, chat_id: int) -> Message | Error:
+        logger.info("Unlinking telegram_chat_id=%s", chat_id)
+        async with self._unit_of_work as uow:
+            await uow.user_repository.unlink_telegram(chat_id)
+            await uow.commit()
+        return Message(detail="Telegram account unlinked successfully")

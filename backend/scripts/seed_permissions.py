@@ -45,6 +45,8 @@ PERMISSIONS: dict[str, str] = {
     "documents.view_my": "View My Own Document",
     "documents.view_version": "View Document Version",
     "documents.view_version_my": "View My Document Version",
+    "documents.search": "Search Document",
+    "documents.search_my": "Search My Document",
     "logged_histories.delete": "Delete Logged History",
     "logged_histories.view": "View Logged History",
     "permissions.list": "List Permissions",

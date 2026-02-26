@@ -19,7 +19,16 @@ dependencies = [
     "python-multipart>=0.0.21",
     "pytz>=2025.2",
     "sqlalchemy>=2.0.45",
+    "python-telegram-bot>=22.6",
     "uvicorn>=0.40.0",
+    "prometheus-fastapi-instrumentator>=7.1.0",
+    "opentelemetry-sdk>=1.39.1",
+    "opentelemetry-instrumentation-fastapi>=0.60b1",
+    "opentelemetry-instrumentation-sqlalchemy>=0.60b1",
+    "opentelemetry-exporter-otlp-proto-http>=1.39.1",
+    "opentelemetry-instrumentation-httpx>=0.60b1",
+    "langgraph>=1.0.9",
+    "langchain-ollama>=1.0.1",
 ]
 
 [dependency-groups]

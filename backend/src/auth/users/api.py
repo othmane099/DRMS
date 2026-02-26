@@ -1,4 +1,5 @@
 import logging
+from uuid import UUID
 
 from dependency_injector.wiring import Provide, inject
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -9,12 +10,12 @@ from auth.users.schemas import (
     BulkActionResponse,
     BulkUserAction,
     PaginatedUserResponse,
+    PasswordUpdate,
     UserBasicIdResponse,
     UserCreate,
     UserPermissionsResponse,
     UserPermissionsUpdate,
     UserResponse,
-    UserResponseWithPrograms,
     UserRoleUpdate,
     UserStatus,
     UserStatusUpdate,
@@ -51,6 +52,25 @@ async def get_users(
     return response
 
 
+@router.patch(
+    "/users/password",
+    response_model=Message,
+    description="Update the current user's password. Requires the correct current password.",
+)
+@inject
+async def update_password(
+    current_user: CurrentUser,
+    password_update: PasswordUpdate,
+    user_service: UserService = Depends(Provide["user_service"]),
+) -> Message:
+    response = await user_service.update_password(
+        UUID(str(current_user.id)), password_update
+    )
+    if isinstance(response, Error):
+        raise HTTPException(status_code=response.code, detail=response.detail)
+    return response
+
+
 @router.get(
     "/users/for-assignment",
     response_model=list[UserBasicIdResponse],
@@ -78,18 +98,18 @@ async def get_users_for_assignment(
 
 @router.get(
     "/users/{user_id}",
-    response_model=UserResponseWithPrograms,
+    response_model=UserResponse,
     dependencies=[Depends(require_permission("users.view"))],
     description="Required permission: users.view",
 )
 @inject
 async def get_user(
     user_id: UUID4, user_service: UserService = Depends(Provide["user_service"])
-) -> UserResponseWithPrograms:
+) -> UserResponse:
     response = await user_service.get_user_by_id(user_id)
     if isinstance(response, Error):
         raise HTTPException(status_code=response.code, detail=response.detail)
-    return UserResponseWithPrograms.model_validate(response)
+    return UserResponse.model_validate(response)
 
 
 @router.post(

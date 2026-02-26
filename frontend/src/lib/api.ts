@@ -46,7 +46,8 @@ import {
   ShareLinkInput,
   ShareLinkResponse,
   DocumentReminder,
-  DashboardResponse, UserBasicId,
+  DashboardResponse, UserBasicId, PasswordUpdate, Message,
+  DocumentSearchResponse,
 } from '@/types';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
@@ -99,10 +100,14 @@ class ApiClient {
         throw error;
       }
 
-      const error: ApiError = await response.json().catch(() => ({
-        detail: 'An error occurred',
-      }));
-      error.status = response.status;
+      const raw = await response.json().catch(() => ({ detail: 'An error occurred' }));
+      const error: ApiError = {
+        ...raw,
+        detail: Array.isArray(raw.detail)
+          ? raw.detail.map((e: { msg: string }) => e.msg).join(', ') || 'An error occurred'
+          : raw.detail || 'An error occurred',
+        status: response.status,
+      };
       throw error;
     }
 
@@ -195,6 +200,13 @@ class ApiClient {
     return this.request<{ affected: number }>('/api/v1/users/bulk-action', {
       method: 'POST',
       body: JSON.stringify(action),
+    });
+  }
+
+  async updatePassword(passwordUpdate: PasswordUpdate): Promise<Message> {
+    return this.request<Message>("/api/v1/users/password", {
+      method: "PATCH",
+      body: JSON.stringify(passwordUpdate),
     });
   }
 
@@ -461,10 +473,14 @@ class ApiClient {
         throw error;
       }
 
-      const error: ApiError = await response.json().catch(() => ({
-        detail: 'An error occurred',
-      }));
-      error.status = response.status;
+      const raw = await response.json().catch(() => ({ detail: 'An error occurred' }));
+      const error: ApiError = {
+        ...raw,
+        detail: Array.isArray(raw.detail)
+          ? raw.detail.map((e: { msg: string }) => e.msg).join(', ') || 'An error occurred'
+          : raw.detail || 'An error occurred',
+        status: response.status,
+      };
       throw error;
     }
 
@@ -826,10 +842,14 @@ class ApiClient {
         throw error;
       }
 
-      const error: ApiError = await response.json().catch(() => ({
-        detail: 'An error occurred',
-      }));
-      error.status = response.status;
+      const raw = await response.json().catch(() => ({ detail: 'An error occurred' }));
+      const error: ApiError = {
+        ...raw,
+        detail: Array.isArray(raw.detail)
+          ? raw.detail.map((e: { msg: string }) => e.msg).join(', ') || 'An error occurred'
+          : raw.detail || 'An error occurred',
+        status: response.status,
+      };
       throw error;
     }
 
@@ -865,10 +885,14 @@ class ApiClient {
         throw error;
       }
 
-      const error: ApiError = await response.json().catch(() => ({
-        detail: 'An error occurred',
-      }));
-      error.status = response.status;
+      const raw = await response.json().catch(() => ({ detail: 'An error occurred' }));
+      const error: ApiError = {
+        ...raw,
+        detail: Array.isArray(raw.detail)
+          ? raw.detail.map((e: { msg: string }) => e.msg).join(', ') || 'An error occurred'
+          : raw.detail || 'An error occurred',
+        status: response.status,
+      };
       throw error;
     }
 
@@ -1059,6 +1083,20 @@ class ApiClient {
     }
     const query = params.toString();
     return this.request<DashboardResponse>(`/api/v1/dashboard${query ? `?${query}` : ''}`);
+  }
+
+  async searchDocuments(message: string): Promise<DocumentSearchResponse> {
+    return this.request<DocumentSearchResponse>('/api/v1/documents/search', {
+      method: 'POST',
+      body: JSON.stringify({ message }),
+    });
+  }
+
+  async searchMyDocuments(message: string): Promise<DocumentSearchResponse> {
+    return this.request<DocumentSearchResponse>('/api/v1/documents/search/me', {
+      method: 'POST',
+      body: JSON.stringify({ message }),
+    });
   }
 }
 

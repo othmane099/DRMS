@@ -23,7 +23,7 @@ export function UserForm({ user, roles }: UserFormProps) {
     first_name: user?.first_name || '',
     last_name: user?.last_name || '',
     is_active: user?.is_active ?? true,
-    role_id: user?.role_id?.toString() || '',
+    role_id: user?.role?.id?.toString() || '',
   });
 
   const [errors, setErrors] = useState<Record<string, string>>({});

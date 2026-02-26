@@ -14,10 +14,13 @@ from pydantic import UUID4
 from starlette import status
 
 from config import settings
+from core.documents.agents import format_results, generate_sql
 from core.documents.schemas import (
     DocumentCommentCreate,
     DocumentCreate,
     DocumentResponse,
+    DocumentSearchRequest,
+    DocumentSearchResponse,
     DocumentUpdate,
     PaginatedDocumentResponse,
     ShareDocumentCreate,
@@ -158,6 +161,10 @@ class DocumentService(Protocol):
         token: str,
         password: str | None = None,
     ) -> UUID4 | Error: ...
+
+    async def search_documents(
+        self, request: DocumentSearchRequest, user_id: UUID4 | None = None
+    ) -> DocumentSearchResponse | Error: ...
 
 
 class DocumentServiceImpl(DocumentService):
@@ -1295,3 +1302,31 @@ class DocumentServiceImpl(DocumentService):
 
         logger.info("Share link validated successfully (document_id=%s)", document_id)
         return document_id
+
+    async def search_documents(
+        self,
+        request: DocumentSearchRequest,
+        user_id: UUID4 | None = None,
+    ) -> DocumentSearchResponse | Error:
+        logger.info("Searching documents: %s", request.message)
+
+        async with self._unit_of_work as uow:
+            db_schema = await uow.document_repository.get_db_schema()
+
+        try:
+            sql = await generate_sql(
+                message=request.message,
+                db_schema=db_schema,
+                user_id=str(user_id) if user_id else None,
+            )
+            async with self._unit_of_work as uow:
+                rows = await uow.document_repository.execute_search_sql(sql)
+            message = await format_results(request.message, rows)
+        except Exception as e:
+            logger.exception("Agent pipeline failed: %s", e)
+            return Error(
+                detail="Search failed, please try again later",
+                code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+
+        return DocumentSearchResponse(message=message)
