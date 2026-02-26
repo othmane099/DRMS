@@ -56,7 +56,8 @@ async def documents(
     user_svc: UserService = Provide["user_service"],
     document_svc: DocumentService = Provide["document_service"],
 ) -> None:
-    assert update.effective_chat and update.message
+    if not update.effective_chat or not update.message:
+        return
     chat_id = update.effective_chat.id
 
     user = await user_svc.get_user_by_telegram_chat_id(chat_id)
@@ -96,7 +97,8 @@ async def documents_callback(
     document_svc: DocumentService = Provide["document_service"],
 ) -> None:
     query = update.callback_query
-    assert query and update.effective_chat
+    if not query or not update.effective_chat:
+        return
     await query.answer()
 
     chat_id = update.effective_chat.id
@@ -168,7 +170,8 @@ async def search_document(
     user_svc: UserService = Provide["user_service"],
     document_svc: DocumentService = Provide["document_service"],
 ) -> None:
-    assert update.effective_chat and update.message
+    if not update.effective_chat or not update.message:
+        return
     query = " ".join(context.args) if context.args else ""
     if not query:
         await update.message.reply_text(

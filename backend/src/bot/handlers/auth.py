@@ -30,7 +30,8 @@ async def start(
     context: ContextTypes.DEFAULT_TYPE,
     user_svc: UserService = Provide["user_service"],
 ) -> None:
-    assert update.effective_chat and update.message
+    if not update.effective_chat or not update.message:
+        return
     chat_id = update.effective_chat.id
 
     user = await user_svc.get_user_by_telegram_chat_id(chat_id)
@@ -52,7 +53,8 @@ async def login(
     auth_svc: AuthService = Provide["auth_service"],
     user_svc: UserService = Provide["user_service"],
 ) -> None:
-    assert update.effective_chat and update.message
+    if not update.effective_chat or not update.message:
+        return
     chat_id = update.effective_chat.id
 
     if not context.args or len(context.args) < 2:
@@ -67,7 +69,7 @@ async def login(
     try:
         await update.message.delete()
     except Exception:
-        pass
+        logger.debug("Could not delete login message", exc_info=True)
 
     result = await auth_svc.authenticate(
         LoginRequest(username=username, password=password)
@@ -100,7 +102,8 @@ async def unlink(
     context: ContextTypes.DEFAULT_TYPE,
     user_svc: UserService = Provide["user_service"],
 ) -> None:
-    assert update.effective_chat and update.message
+    if not update.effective_chat or not update.message:
+        return
     chat_id = update.effective_chat.id
 
     user = await user_svc.get_user_by_telegram_chat_id(chat_id)
