@@ -56,7 +56,8 @@ async def reminders(
     user_svc: UserService = Provide["user_service"],
     reminder_svc: ReminderService = Provide["reminder_service"],
 ) -> None:
-    assert update.effective_chat and update.message
+    if not update.effective_chat or not update.message:
+        return
     chat_id = update.effective_chat.id
 
     user = await user_svc.get_user_by_telegram_chat_id(chat_id)
@@ -95,7 +96,8 @@ async def reminders_callback(
     reminder_svc: ReminderService = Provide["reminder_service"],
 ) -> None:
     query = update.callback_query
-    assert query and update.effective_chat
+    if not query or not update.effective_chat:
+        return
     await query.answer()
 
     chat_id = update.effective_chat.id
