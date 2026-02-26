@@ -29,6 +29,7 @@ dependencies = [
     "opentelemetry-instrumentation-httpx>=0.60b1",
     "langgraph>=1.0.9",
     "langchain-ollama>=1.0.1",
+    "sqlglot>=29.0.1",
 ]
 
 [dependency-groups]

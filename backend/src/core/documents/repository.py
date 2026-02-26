@@ -554,13 +554,27 @@ class DocumentRepositoryImpl(DocumentRepository):
         return [(row[0], row[1]) for row in result.all()]
 
     async def get_db_schema(self) -> str:
+        _DOCUMENT_ALLOWED_TABLES = [
+            "documents",
+            "version_histories",
+            "document_histories",
+            "document_comments",
+            "share_documents",
+            "document_tags",
+            "categories",
+            "subcategories",
+            "stages",
+            "tags",
+        ]
         result = await self.session.execute(
             text("""
             SELECT table_name, column_name, data_type
             FROM information_schema.columns
             WHERE table_schema = 'public'
+              AND table_name = ANY(:allowed_tables)
             ORDER BY table_name, ordinal_position
-            """)
+            """),
+            {"allowed_tables": _DOCUMENT_ALLOWED_TABLES},
         )
         tables: dict[str, list[str]] = {}
         for row in result.fetchall():

@@ -3,6 +3,8 @@ import logging
 import re
 from typing import Any, TypedDict
 
+import sqlglot
+import sqlglot.errors
 from langchain_core.messages import HumanMessage, SystemMessage
 from langchain_ollama import ChatOllama
 from langgraph.graph import END, START, StateGraph
@@ -13,12 +15,33 @@ logger = logging.getLogger(__name__)
 
 SCORE_THRESHOLD = 7
 
+DOCUMENT_ALLOWED_TABLES: frozenset[str] = frozenset(
+    {
+        "documents",
+        "version_histories",
+        "document_histories",
+        "document_comments",
+        "share_documents",
+        "document_tags",
+        "categories",
+        "subcategories",
+        "stages",
+        "tags",
+    }
+)
+
+
+def validate_sql_tables(sql: str) -> bool:
+    referenced = set(re.findall(r"(?:FROM|JOIN)\s+\"?(\w+)\"?", sql, re.IGNORECASE))
+    return referenced.issubset(DOCUMENT_ALLOWED_TABLES)
+
 
 class SearchState(TypedDict):
     user_message: str
     db_schema: str
     current_user_id: str | None  # None = search all, str = filter to this user
     generated_sql: str
+    sql_valid: bool
     score: int
     feedback: str
     iterations: int
@@ -110,6 +133,24 @@ async def formatter_node(state: SearchState) -> dict[str, Any]:
     return {"message": str(response.content).strip()}
 
 
+def sql_validator_node(state: SearchState) -> dict[str, Any]:
+    try:
+        sqlglot.parse_one(state["generated_sql"], dialect="postgres")
+        logger.debug("SQL syntax validation passed")
+        return {"sql_valid": True}
+    except sqlglot.errors.ParseError as e:
+        logger.debug("SQL syntax validation failed: %s", e)
+        return {"sql_valid": False, "score": 0, "feedback": f"SQL syntax error: {e}"}
+
+
+def _validator_route(state: SearchState) -> str:
+    if not state["sql_valid"]:
+        if state["iterations"] >= settings.OLLAMA_MAX_ITERATIONS:
+            return "done"
+        return "sql_agent"
+    return "reviewer"
+
+
 def _route(state: SearchState) -> str:
     if (
         state["score"] >= SCORE_THRESHOLD
@@ -122,10 +163,16 @@ def _route(state: SearchState) -> str:
 def _build_sql_graph() -> Any:
     graph: StateGraph = StateGraph(SearchState)
     graph.add_node("sql_agent", sql_agent_node)
+    graph.add_node("sql_validator", sql_validator_node)
     graph.add_node("reviewer", reviewer_node)
 
     graph.add_edge(START, "sql_agent")
-    graph.add_edge("sql_agent", "reviewer")
+    graph.add_edge("sql_agent", "sql_validator")
+    graph.add_conditional_edges(
+        "sql_validator",
+        _validator_route,
+        {"reviewer": "reviewer", "sql_agent": "sql_agent", "done": END},
+    )
     graph.add_conditional_edges(
         "reviewer",
         _route,
@@ -146,6 +193,7 @@ async def generate_sql(
         "db_schema": db_schema,
         "current_user_id": user_id,
         "generated_sql": "",
+        "sql_valid": False,
         "score": 0,
         "feedback": "",
         "iterations": 0,
@@ -164,6 +212,7 @@ async def format_results(message: str, rows: list[dict[str, Any]]) -> str:
         "db_schema": "",
         "current_user_id": None,
         "generated_sql": "",
+        "sql_valid": False,
         "score": 0,
         "feedback": "",
         "iterations": 0,

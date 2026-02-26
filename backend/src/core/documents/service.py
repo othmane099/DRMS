@@ -14,7 +14,7 @@ from pydantic import UUID4
 from starlette import status
 
 from config import settings
-from core.documents.agents import format_results, generate_sql
+from core.documents.agents import format_results, generate_sql, validate_sql_tables
 from core.documents.schemas import (
     DocumentCommentCreate,
     DocumentCreate,
@@ -1323,6 +1323,15 @@ class DocumentServiceImpl(DocumentService):
             return Error(
                 detail="Search failed, please try again later",
                 code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+
+        if not validate_sql_tables(sql):
+            logger.warning(
+                "Generated SQL references disallowed tables, rejecting: %s", sql
+            )
+            return Error(
+                detail="Search query is not related to documents",
+                code=status.HTTP_400_BAD_REQUEST,
             )
 
         async with self._unit_of_work as uow:

@@ -32,10 +32,16 @@ class Settings(BaseSettings):
 
     OLLAMA_SQL_AGENT_RULES: str = (
         "- Output ONLY the raw SQL query, no markdown, no explanation\n"
-        "- Only SELECT statements\n"
+        "- Only SELECT statements are allowed; never INSERT, UPDATE, DELETE, DROP, or any DDL\n"
         "- Always include LIMIT 100 unless the user specifies a number\n"
         "- Use LEFT JOINs (never INNER JOIN)\n"
-        "- Never select UUID columns in the output"
+        "- Never select UUID columns in the output\n"
+        "- Only query document-related tables: documents, version_histories, document_histories, "
+        "document_comments, share_documents, document_tags, "
+        "categories, subcategories, stages, tags\n"
+        "- Never access user credentials, passwords, authentication tokens, or any table "
+        "outside the document domain\n"
+        "- If the request is not related to documents, output: SELECT 'Invalid query' AS error"
     )
     OLLAMA_REVIEWER_SYSTEM_PROMPT: str = (
         "You are a SQL reviewer. Evaluate the query for correctness, safety, and relevance.\n\n"
@@ -45,7 +51,8 @@ class Settings(BaseSettings):
     OLLAMA_FORMATTER_SYSTEM_PROMPT: str = (
         "You are a helpful assistant. Summarize database query results "
         "into a clear, concise natural language response for the user. "
-        "Be informative but brief."
+        "Be informative but brief. "
+        "Never include IDs, UUIDs, or any identifier fields in the response."
     )
 
     OTEL_ENABLED: bool = False
