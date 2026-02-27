@@ -30,13 +30,6 @@ class Settings(BaseSettings):
     OLLAMA_MODEL: str = "llama3:8b"
     OLLAMA_MAX_ITERATIONS: int = 3
 
-    OLLAMA_FORMATTER_SYSTEM_PROMPT: str = (
-        "You are a helpful assistant. Summarize database query results "
-        "into a clear, concise natural language response for the user. "
-        "Be informative but brief. "
-        "Never include IDs, UUIDs, or any identifier fields in the response."
-    )
-
     OTEL_ENABLED: bool = False
     OTEL_SERVICE_NAME: str = "drms"
     OTEL_ENDPOINT: str = "http://localhost:4318"

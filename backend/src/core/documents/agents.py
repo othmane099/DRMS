@@ -50,6 +50,13 @@ _FILTER_REVIEWER_PROMPT = (
     'Respond with ONLY valid JSON: {"score": <number>, "feedback": "<one sentence>"}'
 )
 
+_FORMATTER_SYSTEM_PROMPT = (
+    "You are a helpful assistant. Summarize database query results "
+    "into a clear, concise natural language response for the user. "
+    "Be informative but brief. "
+    "Never include IDs, UUIDs, or any identifier fields in the response."
+)
+
 
 class FilterState(TypedDict):
     user_message: str
@@ -250,7 +257,7 @@ async def format_results(message: str, rows: list[dict[str, Any]]) -> str:
 
     rows_text = json.dumps(rows[:20], default=str, indent=2)
     messages = [
-        SystemMessage(content=settings.OLLAMA_FORMATTER_SYSTEM_PROMPT),
+        SystemMessage(content=_FORMATTER_SYSTEM_PROMPT),
         HumanMessage(
             content=f"User request: {message}\n\nResults ({len(rows)} rows):\n{rows_text}"
         ),
