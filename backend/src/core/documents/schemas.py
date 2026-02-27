@@ -64,6 +64,7 @@ class VersionHistoryResponse(BaseModel):
     is_current: bool
     created_by: UUID4
     creator: UserBasicResponse
+    summary: str | None = None
     created_at: datetime
     model_config = ConfigDict(from_attributes=True)
 
@@ -122,6 +123,21 @@ class ShareLinkResponse(BaseModel):
 
 class ShareLinkAccessRequest(BaseModel):
     password: str | None = None
+
+
+class DocumentSearchFilters(BaseModel):
+    title_contains: str | None = None
+    description_contains: str | None = None
+    category: str | None = None
+    subcategory: str | None = None
+    stage: str | None = None
+    assignee_name: str | None = None
+    created_by_name: str | None = None
+    tags: list[str] | None = None
+    created_after: date | None = None
+    created_before: date | None = None
+    archived: bool | None = None
+    limit: int = Field(default=20, ge=1, le=100)
 
 
 class DocumentSearchRequest(BaseModel):

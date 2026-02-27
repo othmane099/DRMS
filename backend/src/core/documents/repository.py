@@ -3,12 +3,13 @@ from typing import Any, Protocol
 from uuid import UUID
 
 from pydantic import UUID4
-from sqlalchemy import and_, exists, func, or_, select, text
+from sqlalchemy import and_, exists, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import selectinload
+from sqlalchemy.orm import aliased, selectinload
 
-from configuration.models import Tag
-from core.documents.schemas import DocumentCreate, DocumentUpdate
+from auth.models import User
+from configuration.models import Category, Stage, Subcategory, Tag
+from core.documents.schemas import DocumentCreate, DocumentSearchFilters, DocumentUpdate
 from core.models import (
     Document,
     DocumentComment,
@@ -109,9 +110,11 @@ class DocumentRepository(Protocol):
 
     async def get_documents_by_subcategory(self) -> list[tuple[str, int]]: ...
 
-    async def get_db_schema(self) -> str: ...
+    async def search_documents_with_filters(
+        self, filters: DocumentSearchFilters, user_id: UUID | None
+    ) -> list[dict[str, Any]]: ...
 
-    async def execute_search_sql(self, sql: str) -> list[dict[str, Any]]: ...
+    async def update_version_summary(self, version_id: UUID, summary: str) -> None: ...
 
 
 class DocumentRepositoryImpl(DocumentRepository):
@@ -553,27 +556,124 @@ class DocumentRepositoryImpl(DocumentRepository):
         )
         return [(row[0], row[1]) for row in result.all()]
 
-    async def get_db_schema(self) -> str:
-        result = await self.session.execute(
-            text("""
-            SELECT table_name, column_name, data_type
-            FROM information_schema.columns
-            WHERE table_schema = 'public'
-            ORDER BY table_name, ordinal_position
-            """)
+    async def search_documents_with_filters(
+        self, filters: DocumentSearchFilters, user_id: UUID | None
+    ) -> list[dict[str, Any]]:
+        query = select(Document).options(
+            selectinload(Document.stage),
+            selectinload(Document.assigned_user),
+            selectinload(Document.creator),
+            selectinload(Document.category),
+            selectinload(Document.subcategory),
+            selectinload(Document.tags),
         )
-        tables: dict[str, list[str]] = {}
-        for row in result.fetchall():
-            table = str(row.table_name)
-            col = f"{row.column_name} ({row.data_type})"
-            if table not in tables:
-                tables[table] = []
-            tables[table].append(col)
-        lines = ["Database tables:"]
-        for table, cols in sorted(tables.items()):
-            lines.append(f"- {table}: {', '.join(cols)}")
-        return "\n".join(lines)
 
-    async def execute_search_sql(self, sql: str) -> list[dict[str, Any]]:
-        result = await self.session.execute(text(sql))
-        return [dict(row._mapping) for row in result.fetchall()]
+        # Direct field filters
+        if filters.title_contains:
+            query = query.where(Document.name.ilike(f"%{filters.title_contains}%"))
+        if filters.description_contains:
+            query = query.where(
+                Document.description.ilike(f"%{filters.description_contains}%")
+            )
+
+        # Date range
+        if filters.created_after:
+            query = query.where(Document.created_at >= filters.created_after)
+        if filters.created_before:
+            query = query.where(Document.created_at <= filters.created_before)
+
+        # Archive (default to non-archived)
+        archive_flag = filters.archived if filters.archived is not None else False
+        query = query.where(Document.archive == archive_flag)
+
+        # Join-based text filters
+        if filters.category:
+            query = query.join(Category, Document.category_id == Category.id).where(
+                Category.title.ilike(f"%{filters.category}%")
+            )
+        if filters.subcategory:
+            query = query.join(
+                Subcategory, Document.subcategory_id == Subcategory.id
+            ).where(Subcategory.title.ilike(f"%{filters.subcategory}%"))
+        if filters.stage:
+            query = query.join(Stage, Document.stage_id == Stage.id).where(
+                Stage.title.ilike(f"%{filters.stage}%")
+            )
+        if filters.assignee_name:
+            assignee = aliased(User)
+            query = query.join(assignee, Document.assigned_to == assignee.id).where(
+                or_(
+                    assignee.username.ilike(f"%{filters.assignee_name}%"),
+                    assignee.first_name.ilike(f"%{filters.assignee_name}%"),
+                    assignee.last_name.ilike(f"%{filters.assignee_name}%"),
+                )
+            )
+        if filters.created_by_name:
+            creator = aliased(User)
+            query = query.join(creator, Document.created_by == creator.id).where(
+                or_(
+                    creator.username.ilike(f"%{filters.created_by_name}%"),
+                    creator.first_name.ilike(f"%{filters.created_by_name}%"),
+                    creator.last_name.ilike(f"%{filters.created_by_name}%"),
+                )
+            )
+
+        # Tags (AND semantics — document must match each tag)
+        if filters.tags:
+            for tag in filters.tags:
+                query = query.where(Document.tags.any(Tag.title.ilike(f"%{tag}%")))
+
+        # User scope enforced at ORM level
+        if user_id:
+            shared_subquery = exists().where(
+                and_(
+                    ShareDocument.document_id == Document.id,
+                    ShareDocument.user_id == user_id,
+                    or_(
+                        ShareDocument.start_date.is_(None),
+                        ShareDocument.start_date <= func.current_date(),
+                    ),
+                    or_(
+                        ShareDocument.end_date.is_(None),
+                        ShareDocument.end_date >= func.current_date(),
+                    ),
+                )
+            )
+            query = query.where(
+                or_(
+                    Document.created_by == user_id,
+                    Document.assigned_to == user_id,
+                    shared_subquery,
+                )
+            )
+
+        query = query.order_by(Document.created_at.desc()).limit(filters.limit)
+        result = await self.session.execute(query)
+        docs = result.scalars().unique().all()
+
+        return [
+            {
+                "name": doc.name,
+                "description": doc.description,
+                "category": doc.category.title if doc.category else None,
+                "subcategory": doc.subcategory.title if doc.subcategory else None,
+                "stage": doc.stage.title if doc.stage else None,
+                "assigned_to": doc.assigned_user.username
+                if doc.assigned_user
+                else None,
+                "created_by": doc.creator.username if doc.creator else None,
+                "tags": [tag.title for tag in doc.tags] if doc.tags else [],
+                "created_at": doc.created_at.isoformat() if doc.created_at else None,
+                "archived": doc.archive,
+            }
+            for doc in docs
+        ]
+
+    async def update_version_summary(self, version_id: UUID, summary: str) -> None:
+        result = await self.session.execute(
+            select(VersionHistory).where(VersionHistory.id == version_id)
+        )
+        version = result.scalars().first()
+        if version:
+            version.summary = summary
+            await self.session.flush()

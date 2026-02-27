@@ -30,24 +30,6 @@ class Settings(BaseSettings):
     OLLAMA_MODEL: str = "llama3:8b"
     OLLAMA_MAX_ITERATIONS: int = 3
 
-    OLLAMA_SQL_AGENT_RULES: str = (
-        "- Output ONLY the raw SQL query, no markdown, no explanation\n"
-        "- Only SELECT statements\n"
-        "- Always include LIMIT 100 unless the user specifies a number\n"
-        "- Use LEFT JOINs (never INNER JOIN)\n"
-        "- Never select UUID columns in the output"
-    )
-    OLLAMA_REVIEWER_SYSTEM_PROMPT: str = (
-        "You are a SQL reviewer. Evaluate the query for correctness, safety, and relevance.\n\n"
-        "Score 0-10 (7+ is acceptable).\n"
-        'Respond with ONLY valid JSON: {"score": <number>, "feedback": "<one sentence>"}'
-    )
-    OLLAMA_FORMATTER_SYSTEM_PROMPT: str = (
-        "You are a helpful assistant. Summarize database query results "
-        "into a clear, concise natural language response for the user. "
-        "Be informative but brief."
-    )
-
     OTEL_ENABLED: bool = False
     OTEL_SERVICE_NAME: str = "drms"
     OTEL_ENDPOINT: str = "http://localhost:4318"

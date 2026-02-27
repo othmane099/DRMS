@@ -9,12 +9,12 @@ from uuid import UUID
 
 from cryptography.fernet import Fernet, InvalidToken
 from dependency_injector.wiring import Provide, inject
-from fastapi import UploadFile
+from fastapi import BackgroundTasks, UploadFile
 from pydantic import UUID4
 from starlette import status
 
 from config import settings
-from core.documents.agents import format_results, generate_sql
+from core.documents.agents import extract_filters, format_results, generate_summary
 from core.documents.schemas import (
     DocumentCommentCreate,
     DocumentCreate,
@@ -26,6 +26,7 @@ from core.documents.schemas import (
     ShareDocumentCreate,
     ShareLinkCreate,
 )
+from core.documents.text_extractor import extract_text
 from core.models import (
     Document,
     DocumentComment,
@@ -38,6 +39,52 @@ from unit_of_work.uow import UnitOfWork
 logger = logging.getLogger(__name__)
 
 UPLOAD_DIR = Path(settings.UPLOAD_DIR)
+
+
+@inject
+async def _run_document_summary(
+    version_id: UUID,
+    document_name: str,
+    document_file: str,
+    unit_of_work: UnitOfWork = Provide["unit_of_work"],
+) -> None:
+    logger.info(
+        "Summary task started (version_id=%s, document=%r)", version_id, document_name
+    )
+    try:
+        logger.debug("Summary task: extracting text from %s", document_file)
+        text = await extract_text(document_file)
+        if not text:
+            logger.info(
+                "Summary task: skipped — no extractable text (version_id=%s, file=%s)",
+                version_id,
+                document_file,
+            )
+            return
+
+        logger.debug(
+            "Summary task: generating summary (%d chars) for %r",
+            len(text),
+            document_name,
+        )
+        summary = await generate_summary(text, document_name)
+
+        async with unit_of_work as uow:
+            await uow.document_repository.update_version_summary(version_id, summary)
+            await uow.commit()
+
+        logger.info(
+            "Summary task completed (version_id=%s, document=%r, summary_len=%d)",
+            version_id,
+            document_name,
+            len(summary),
+        )
+    except Exception:
+        logger.exception(
+            "Summary task failed (version_id=%s, document=%r)", version_id, document_name
+        )
+
+
 ALLOWED_EXTENSIONS = {
     "pdf",
     "doc",
@@ -72,6 +119,7 @@ class DocumentService(Protocol):
         document_create: DocumentCreate,
         document_file: UploadFile,
         current_user_id: UUID,
+        background_tasks: BackgroundTasks | None = None,
     ) -> Document | Error: ...
 
     async def update_document(
@@ -104,6 +152,7 @@ class DocumentService(Protocol):
         document_file: UploadFile,
         current_user_id: UUID4,
         user_id: UUID4 | None = None,
+        background_tasks: BackgroundTasks | None = None,
     ) -> VersionHistory | Error: ...
 
     async def get_version_file_path(
@@ -242,6 +291,7 @@ class DocumentServiceImpl(DocumentService):
         document_create: DocumentCreate,
         document_file: UploadFile,
         current_user_id: UUID,
+        background_tasks: BackgroundTasks | None = None,
     ) -> Document | Error:
         logger.info("Creating document (name=%s)", document_create.name)
 
@@ -360,9 +410,16 @@ class DocumentServiceImpl(DocumentService):
 
             await uow.commit()
 
+            version_id = version.id
+            doc_name = document.name
+            doc_file = file_path
+
             created_document = await uow.document_repository.get_document_by_id(
                 document.id
             )
+
+        if background_tasks is not None:
+            background_tasks.add_task(_run_document_summary, version_id, doc_name, doc_file)
 
         logger.info(
             "Document created successfully (id=%s, name=%s)",
@@ -655,6 +712,7 @@ class DocumentServiceImpl(DocumentService):
         document_file: UploadFile,
         current_user_id: UUID4,
         user_id: UUID4 | None = None,
+        background_tasks: BackgroundTasks | None = None,
     ) -> VersionHistory | Error:
         logger.info("Creating new version (document_id=%s)", document_id)
 
@@ -727,7 +785,14 @@ class DocumentServiceImpl(DocumentService):
                 created_by=current_user_id,
             )
 
+            version_id = version.id
+            doc_name = document.name
+            doc_file = file_path
+
             await uow.commit()
+
+        if background_tasks is not None:
+            background_tasks.add_task(_run_document_summary, version_id, doc_name, doc_file)
 
         logger.info(
             "New version created successfully (document_id=%s, version=%d)",
@@ -1310,20 +1375,24 @@ class DocumentServiceImpl(DocumentService):
     ) -> DocumentSearchResponse | Error:
         logger.info("Searching documents: %s", request.message)
 
+        try:
+            filters = await extract_filters(request.message)
+        except Exception:
+            logger.exception("Filter extraction failed")
+            return Error(
+                detail="Search failed, please try again later",
+                code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+
         async with self._unit_of_work as uow:
-            db_schema = await uow.document_repository.get_db_schema()
+            rows = await uow.document_repository.search_documents_with_filters(
+                filters, user_id
+            )
 
         try:
-            sql = await generate_sql(
-                message=request.message,
-                db_schema=db_schema,
-                user_id=str(user_id) if user_id else None,
-            )
-            async with self._unit_of_work as uow:
-                rows = await uow.document_repository.execute_search_sql(sql)
             message = await format_results(request.message, rows)
-        except Exception as e:
-            logger.exception("Agent pipeline failed: %s", e)
+        except Exception:
+            logger.exception("Result formatting failed")
             return Error(
                 detail="Search failed, please try again later",
                 code=status.HTTP_500_INTERNAL_SERVER_ERROR,

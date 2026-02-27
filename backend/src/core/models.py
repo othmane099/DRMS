@@ -84,6 +84,7 @@ class VersionHistory(Base):  # type: ignore
     version_number = Column(Integer, nullable=False)
     is_current = Column(Boolean, default=True, nullable=False)
     created_by = Column(UUID, ForeignKey("users.id"), nullable=False)
+    summary = Column(Text, nullable=True)
     created_at = Column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )

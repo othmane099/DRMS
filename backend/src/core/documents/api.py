@@ -3,7 +3,16 @@ from datetime import date
 from pathlib import Path
 
 from dependency_injector.wiring import Provide, inject
-from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile
+from fastapi import (
+    APIRouter,
+    BackgroundTasks,
+    Depends,
+    File,
+    Form,
+    HTTPException,
+    Query,
+    UploadFile,
+)
 from fastapi.responses import FileResponse
 from pydantic import UUID4
 
@@ -98,6 +107,7 @@ async def get_documents(
 @inject
 async def create_document(
     current_user: CurrentUser,
+    background_tasks: BackgroundTasks,
     name: str = Form(...),
     category_id: UUID4 = Form(...),
     subcategory_id: UUID4 = Form(...),
@@ -124,6 +134,7 @@ async def create_document(
         document_create=document_create,
         document_file=document,
         current_user_id=current_user.id,
+        background_tasks=background_tasks,
     )
 
     if isinstance(response, Error):
@@ -528,6 +539,7 @@ async def get_version_history(
 async def create_my_new_version(
     document_id: UUID4,
     current_user: CurrentUser,
+    background_tasks: BackgroundTasks,
     document: UploadFile = File(...),
     document_service: DocumentService = Depends(Provide["document_service"]),
 ) -> VersionHistoryResponse:
@@ -536,6 +548,7 @@ async def create_my_new_version(
         document_file=document,
         current_user_id=current_user.id,
         user_id=current_user.id,
+        background_tasks=background_tasks,
     )
 
     if isinstance(response, Error):
@@ -554,6 +567,7 @@ async def create_my_new_version(
 async def create_new_version(
     document_id: UUID4,
     current_user: CurrentUser,
+    background_tasks: BackgroundTasks,
     document: UploadFile = File(...),
     document_service: DocumentService = Depends(Provide["document_service"]),
 ) -> VersionHistoryResponse:
@@ -561,6 +575,7 @@ async def create_new_version(
         document_id=document_id,
         document_file=document,
         current_user_id=current_user.id,
+        background_tasks=background_tasks,
     )
 
     if isinstance(response, Error):

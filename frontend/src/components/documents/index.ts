@@ -1,3 +1,4 @@
+export { AIDocumentSearch } from './AIDocumentSearch';
 export { DocumentTable } from './DocumentTable';
 export { DocumentFilters } from './DocumentFilters';
 export { DocumentModal } from './DocumentModal';
