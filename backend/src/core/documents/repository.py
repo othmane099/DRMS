@@ -114,6 +114,8 @@ class DocumentRepository(Protocol):
         self, filters: DocumentSearchFilters, user_id: UUID | None
     ) -> list[dict[str, Any]]: ...
 
+    async def update_version_summary(self, version_id: UUID, summary: str) -> None: ...
+
 
 class DocumentRepositoryImpl(DocumentRepository):
     def __init__(self, session: AsyncSession):
@@ -666,3 +668,12 @@ class DocumentRepositoryImpl(DocumentRepository):
             }
             for doc in docs
         ]
+
+    async def update_version_summary(self, version_id: UUID, summary: str) -> None:
+        result = await self.session.execute(
+            select(VersionHistory).where(VersionHistory.id == version_id)
+        )
+        version = result.scalars().first()
+        if version:
+            version.summary = summary
+            await self.session.flush()

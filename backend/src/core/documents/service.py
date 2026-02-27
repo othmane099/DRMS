@@ -11,7 +11,6 @@ from cryptography.fernet import Fernet, InvalidToken
 from dependency_injector.wiring import Provide, inject
 from fastapi import BackgroundTasks, UploadFile
 from pydantic import UUID4
-from sqlalchemy import select
 from starlette import status
 
 from config import settings
@@ -34,7 +33,6 @@ from core.models import (
     ShareDocument,
     VersionHistory,
 )
-from db import async_session
 from schemas import Error, Message
 from unit_of_work.uow import UnitOfWork
 
@@ -43,46 +41,44 @@ logger = logging.getLogger(__name__)
 UPLOAD_DIR = Path(settings.UPLOAD_DIR)
 
 
-async def _run_document_summary(version_id: UUID, document_name: str) -> None:
+@inject
+async def _run_document_summary(
+    version_id: UUID,
+    document_name: str,
+    document_file: str,
+    unit_of_work: UnitOfWork = Provide["unit_of_work"],
+) -> None:
     logger.info(
         "Summary task started (version_id=%s, document=%r)", version_id, document_name
     )
     try:
-        async with async_session() as session:
-            result = await session.execute(
-                select(VersionHistory).where(VersionHistory.id == version_id)
-            )
-            version = result.scalars().first()
-            if not version:
-                logger.warning("Summary task: version not found (version_id=%s)", version_id)
-                return
-
-            logger.debug(
-                "Summary task: extracting text from %s", version.document_file
-            )
-            text = await extract_text(version.document_file)
-            if not text:
-                logger.info(
-                    "Summary task: skipped — no extractable text (version_id=%s, file=%s)",
-                    version_id,
-                    version.document_file,
-                )
-                return
-
-            logger.debug(
-                "Summary task: generating summary (%d chars) for %r",
-                len(text),
-                document_name,
-            )
-            summary = await generate_summary(text, document_name)
-            version.summary = summary
-            await session.commit()
+        logger.debug("Summary task: extracting text from %s", document_file)
+        text = await extract_text(document_file)
+        if not text:
             logger.info(
-                "Summary task completed (version_id=%s, document=%r, summary_len=%d)",
+                "Summary task: skipped — no extractable text (version_id=%s, file=%s)",
                 version_id,
-                document_name,
-                len(summary),
+                document_file,
             )
+            return
+
+        logger.debug(
+            "Summary task: generating summary (%d chars) for %r",
+            len(text),
+            document_name,
+        )
+        summary = await generate_summary(text, document_name)
+
+        async with unit_of_work as uow:
+            await uow.document_repository.update_version_summary(version_id, summary)
+            await uow.commit()
+
+        logger.info(
+            "Summary task completed (version_id=%s, document=%r, summary_len=%d)",
+            version_id,
+            document_name,
+            len(summary),
+        )
     except Exception:
         logger.exception(
             "Summary task failed (version_id=%s, document=%r)", version_id, document_name
@@ -416,13 +412,14 @@ class DocumentServiceImpl(DocumentService):
 
             version_id = version.id
             doc_name = document.name
+            doc_file = file_path
 
             created_document = await uow.document_repository.get_document_by_id(
                 document.id
             )
 
         if background_tasks is not None:
-            background_tasks.add_task(_run_document_summary, version_id, doc_name)
+            background_tasks.add_task(_run_document_summary, version_id, doc_name, doc_file)
 
         logger.info(
             "Document created successfully (id=%s, name=%s)",
@@ -790,11 +787,12 @@ class DocumentServiceImpl(DocumentService):
 
             version_id = version.id
             doc_name = document.name
+            doc_file = file_path
 
             await uow.commit()
 
         if background_tasks is not None:
-            background_tasks.add_task(_run_document_summary, version_id, doc_name)
+            background_tasks.add_task(_run_document_summary, version_id, doc_name, doc_file)
 
         logger.info(
             "New version created successfully (document_id=%s, version=%d)",
