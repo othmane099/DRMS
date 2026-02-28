@@ -784,22 +784,16 @@ class FakeDocumentService(DocumentService):
         self,
         document_id: UUID4,
         document_update: DocumentUpdate,
-        current_user_id: UUID4,
-        user_id: UUID4 | None = None,
+        current_user,
     ) -> Document | Error:
         from auth.models import User
         from configuration.models import Category, Stage, Subcategory, Tag
 
+        current_user_id = current_user.id
+
         # Check if document exists and user has access
         document = self.documents.get(document_id)
         if not document:
-            return Error(detail="Document not found", code=status.HTTP_404_NOT_FOUND)
-
-        if user_id and not (
-            document.created_by == user_id
-            or document.assigned_to == user_id
-            or self._is_document_shared_with_user(document_id, user_id)
-        ):
             return Error(detail="Document not found", code=status.HTTP_404_NOT_FOUND)
 
         # Only the document creator can update the document

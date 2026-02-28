@@ -202,8 +202,7 @@ class DocumentService(Protocol):
         self,
         document_id: UUID4,
         document_update: DocumentUpdate,
-        current_user_id: UUID4,
-        user_id: UUID4 | None = None,
+        current_user: User,
     ) -> Document | Error: ...
 
     async def delete_document(
@@ -528,9 +527,16 @@ class DocumentServiceImpl(DocumentService):
         self,
         document_id: UUID4,
         document_update: DocumentUpdate,
-        current_user_id: UUID4,
-        user_id: UUID4 | None = None,
+        current_user: User,
     ) -> Document | Error:
+        result = await _permission_checker(current_user, "documents.update", "documents.update_my")
+        if isinstance(result, Error):
+            return result
+
+        can_update_all = result is None or "documents.update" in result
+        user_id = None if can_update_all else current_user.id
+        current_user_id = current_user.id
+
         logger.info("Updating document (id=%s)", document_id)
 
         async with self._unit_of_work as uow:
