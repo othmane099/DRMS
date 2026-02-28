@@ -302,38 +302,9 @@ async def get_version_history(
 
 
 @router.post(
-    "/documents/{document_id}/versions/me",
-    response_model=VersionHistoryResponse,
-    dependencies=[Depends(require_permission("documents.create_version_my"))],
-    description="Required permission: documents.create_version_my",
-)
-@inject
-async def create_my_new_version(
-    document_id: UUID4,
-    current_user: CurrentUser,
-    background_tasks: BackgroundTasks,
-    document: UploadFile = File(...),
-    document_service: DocumentService = Depends(Provide["document_service"]),
-) -> VersionHistoryResponse:
-    response = await document_service.create_new_version(
-        document_id=document_id,
-        document_file=document,
-        current_user_id=current_user.id,
-        user_id=current_user.id,
-        background_tasks=background_tasks,
-    )
-
-    if isinstance(response, Error):
-        raise HTTPException(status_code=response.code, detail=response.detail)
-
-    return VersionHistoryResponse.model_validate(response)
-
-
-@router.post(
     "/documents/{document_id}/versions",
     response_model=VersionHistoryResponse,
-    dependencies=[Depends(require_permission("documents.create_version"))],
-    description="Required permission: documents.create_version",
+    description="Required permission: documents.create_version | documents.create_version_my",
 )
 @inject
 async def create_new_version(
@@ -346,7 +317,7 @@ async def create_new_version(
     response = await document_service.create_new_version(
         document_id=document_id,
         document_file=document,
-        current_user_id=current_user.id,
+        current_user=current_user,
         background_tasks=background_tasks,
     )
 

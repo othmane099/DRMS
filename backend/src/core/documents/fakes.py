@@ -902,15 +902,12 @@ class FakeDocumentService(DocumentService):
         self,
         document_id: UUID4,
         document_file: UploadFile,
-        current_user_id: UUID4,
+        current_user=None,
         background_tasks=None,
-        user_id: UUID4 | None = None,
     ) -> VersionHistory | Error:
+        current_user_id = current_user.id if current_user else None
         document = self.documents.get(document_id)
-        if not document or (
-            user_id
-            and (document.created_by != user_id or document.assigned_to != user_id)
-        ):
+        if not document:
             return Error(detail="Document not found", code=status.HTTP_404_NOT_FOUND)
 
         # Only the document creator can create new versions

@@ -229,8 +229,7 @@ class DocumentService(Protocol):
         self,
         document_id: UUID4,
         document_file: UploadFile,
-        current_user_id: UUID4,
-        user_id: UUID4 | None = None,
+        current_user: User,
         background_tasks: BackgroundTasks | None = None,
     ) -> VersionHistory | Error: ...
 
@@ -859,11 +858,19 @@ class DocumentServiceImpl(DocumentService):
         self,
         document_id: UUID4,
         document_file: UploadFile,
-        current_user_id: UUID4,
-        user_id: UUID4 | None = None,
+        current_user: User,
         background_tasks: BackgroundTasks | None = None,
     ) -> VersionHistory | Error:
         logger.info("Creating new version (document_id=%s)", document_id)
+
+        result = await _permission_checker(
+            current_user, "documents.create_version", "documents.create_version_my"
+        )
+        if isinstance(result, Error):
+            return result
+        can_create_all = result is None or "documents.create_version" in result
+        user_id = None if can_create_all else current_user.id
+        current_user_id = current_user.id
 
         file_validation_error = await self._validate_file(document_file)
         if file_validation_error:
