@@ -13,6 +13,9 @@ from fastapi import BackgroundTasks, UploadFile
 from pydantic import UUID4
 from starlette import status
 
+from auth.models import User
+from auth.permissions.service import PermissionService
+from auth.roles.service import RoleService
 from config import settings
 from core.documents.agents import (
     chat_with_document,
@@ -47,6 +50,63 @@ from unit_of_work.uow import UnitOfWork
 logger = logging.getLogger(__name__)
 
 UPLOAD_DIR = Path(settings.UPLOAD_DIR)
+
+
+@inject
+async def _permission_checker(
+    user: User,
+    *permission_codes,
+    permission_service: PermissionService = Provide["permission_service"],
+    role_service: RoleService = Provide["role_service"],
+) -> set[str] | None | Error:
+    if user.is_superuser:
+        return None
+
+    user_permission_codes: set[str] = set()
+
+    if user.role_id:
+        role = await role_service.get_role_by_id(UUID(str(user.role_id)))
+        if isinstance(role, Error):
+            logger.warning(
+                "User %s has invalid role (role_id=%s)", user.username, user.role_id
+            )
+            return Error(
+                detail="Access denied: Invalid role", code=status.HTTP_403_FORBIDDEN
+            )
+        if not role.is_active:
+            logger.warning("User %s has inactive role (role_id=%s)")
+            return Error(
+                detail="Access denied: Invalid role", code=status.HTTP_403_FORBIDDEN
+            )
+        role_permissions = await permission_service.get_permissions_by_role_id(
+            UUID(str(user.role_id))
+        )
+        user_permission_codes.update(p.code for p in role_permissions if p.is_active)
+
+    if user.custom_permissions:
+        user_permission_codes.update(
+            p.code for p in user.custom_permissions if p.is_active
+        )
+
+    if not user_permission_codes:
+        logger.warning(
+            f"User {user.username} has no permissions and no custom permissions"
+        )
+        return Error(
+            code=status.HTTP_403_FORBIDDEN,
+            detail="Access denied: Invalid permission",
+        )
+    intersected_permissions = user_permission_codes.intersection(permission_codes)
+    if not intersected_permissions:
+        logger.warning(
+            f"User {user.username} lacks all of {set(permission_codes)}. "
+            f"Has: {user_permission_codes}"
+        )
+        return Error(
+            code=status.HTTP_403_FORBIDDEN,
+            detail="Access denied: Invalid permission",
+        )
+    return intersected_permissions
 
 
 @inject
@@ -127,7 +187,7 @@ class DocumentService(Protocol):
     async def get_all_documents_paginated(
         self,
         filters: DocumentFilterParams,
-        user_id: UUID4 | None = None,
+        current_user: User,
     ) -> PaginatedDocumentResponse | Error: ...
 
     async def create_document(
@@ -248,11 +308,20 @@ class DocumentServiceImpl(DocumentService):
     async def get_all_documents_paginated(
         self,
         filters: DocumentFilterParams,
-        user_id: UUID4 | None = None,
+        current_user: User,
     ) -> PaginatedDocumentResponse | Error:
+        result = await _permission_checker(
+            current_user, "documents.list", "documents.list_my"
+        )
+        if isinstance(result, Error):
+            return result
+
+        can_list_all = result is None or "documents.list" in result
+        user_id = current_user.id if (not can_list_all or filters.only_my) else None
+
         logger.debug(
             "Fetching documents (page=%s, page_size=%s, category_id=%s, "
-            "stage_id=%s, created_date=%s, archive=%s, search=%s)",
+            "stage_id=%s, created_date=%s, archive=%s, search=%s, user_id=%s)",
             filters.page,
             filters.page_size,
             filters.category_id,
@@ -260,6 +329,7 @@ class DocumentServiceImpl(DocumentService):
             filters.created_date,
             filters.archive,
             filters.search,
+            user_id,
         )
 
         skip = (filters.page - 1) * filters.page_size

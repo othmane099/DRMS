@@ -103,10 +103,10 @@ def current_user():
 
 
 @pytest.mark.asyncio
-@pytest.mark.asyncio
-async def test_get_documents_api_success(document_service):
+async def test_get_documents_api_success(document_service, current_user):
     """Test GET /documents endpoint."""
     result = await get_documents(
+        current_user=current_user,
         filters=DocumentFilterParams(**{"page": 1, "page_size": 10, "archive": False}),
         document_service=document_service,
     )
@@ -120,10 +120,11 @@ async def test_get_documents_api_success(document_service):
 
 
 @pytest.mark.asyncio
-async def test_get_documents_api_pagination(document_service):
+async def test_get_documents_api_pagination(document_service, current_user):
     """Test GET /documents endpoint with pagination."""
     # Get page 2
     result = await get_documents(
+        current_user=current_user,
         filters=DocumentFilterParams(**{"page": 2, "page_size": 10, "archive": False}),
         document_service=document_service,
     )
@@ -137,11 +138,17 @@ async def test_get_documents_api_pagination(document_service):
 
 
 @pytest.mark.asyncio
-async def test_get_documents_api_with_category_filter(document_service):
+async def test_get_documents_api_with_category_filter(document_service, current_user):
     """Test GET /documents endpoint with category filter."""
     result = await get_documents(
+        current_user=current_user,
         filters=DocumentFilterParams(
-            **{"page": 1, "page_size": 20, "archive": False, "category_id": document_service.test_category_id}
+            **{
+                "page": 1,
+                "page_size": 20,
+                "archive": False,
+                "category_id": document_service.test_category_id,
+            }
         ),
         document_service=document_service,
     )
@@ -151,11 +158,17 @@ async def test_get_documents_api_with_category_filter(document_service):
 
 
 @pytest.mark.asyncio
-async def test_get_documents_api_with_stage_filter(document_service):
+async def test_get_documents_api_with_stage_filter(document_service, current_user):
     """Test GET /documents endpoint with stage filter."""
     result = await get_documents(
+        current_user=current_user,
         filters=DocumentFilterParams(
-            **{"page": 1, "page_size": 20, "archive": False, "category_id": document_service.test_category_id}
+            **{
+                "page": 1,
+                "page_size": 20,
+                "archive": False,
+                "category_id": document_service.test_category_id,
+            }
         ),
         document_service=document_service,
     )
@@ -165,9 +178,10 @@ async def test_get_documents_api_with_stage_filter(document_service):
 
 
 @pytest.mark.asyncio
-async def test_get_documents_api_empty(document_service):
+async def test_get_documents_api_empty(document_service, current_user):
     """Test GET /documents endpoint with no documents matching filters."""
     result = await get_documents(
+        current_user=current_user,
         filters=DocumentFilterParams(
             **{
                 "page": 1,
@@ -935,7 +949,9 @@ async def test_archive_document_api_not_found(document_service, current_user):
 
 
 @pytest.mark.asyncio
-async def test_get_documents_excludes_archived_by_default_api(document_service):
+async def test_get_documents_excludes_archived_by_default_api(
+    document_service, current_user
+):
     """Test GET /documents endpoint excludes archived documents by default."""
     # Add non-archived documents
     for i in range(3):
@@ -1021,6 +1037,7 @@ async def test_get_documents_excludes_archived_by_default_api(document_service):
 
     # Get documents without archive parameter
     result = await get_documents(
+        current_user=current_user,
         filters=DocumentFilterParams(
             **{
                 "page": 1,
@@ -1037,7 +1054,9 @@ async def test_get_documents_excludes_archived_by_default_api(document_service):
 
 
 @pytest.mark.asyncio
-async def test_get_documents_with_archive_filter_true_api(document_service):
+async def test_get_documents_with_archive_filter_true_api(
+    document_service, current_user
+):
     """Test GET /documents endpoint with archive=True returns archived documents."""
     # Add archived documents
     for i in range(3):
@@ -1082,9 +1101,8 @@ async def test_get_documents_with_archive_filter_true_api(document_service):
 
     # Get archived documents
     result = await get_documents(
-        filters=DocumentFilterParams(
-            **{"page": 1, "page_size": 20, "archive": True}
-        ),
+        current_user=current_user,
+        filters=DocumentFilterParams(**{"page": 1, "page_size": 20, "archive": True}),
         document_service=document_service,
     )
 

@@ -12,8 +12,8 @@ sys.path.append(f"{os.getcwd()}/src")
 from configuration.models import Category, Stage, Subcategory
 from core.documents.schemas import (
     DocumentCreate,
-    ShareDocumentCreate,
     DocumentFilterParams,
+    ShareDocumentCreate,
 )
 from core.documents.service import DocumentServiceImpl
 from core.models import Document
@@ -78,15 +78,26 @@ def reminder_service(uow):
     return ReminderServiceImpl(unit_of_work=uow)
 
 
+@pytest.fixture
+def superuser():
+    """Provide a superuser that bypasses permission checks."""
+    from auth.models import User
+
+    return User(
+        id=uuid4(),
+        username="superuser",
+        password="hashed",
+        is_active=True,
+        is_superuser=True,
+    )
+
+
 def create_upload_file(filename: str = "test.pdf", content: bytes = b"test content"):
     """Helper to create an UploadFile for testing."""
     file = BytesIO(content)
     return UploadFile(filename=filename, file=file)
 
 
-@pytest.mark.asyncio
-@pytest.mark.asyncio
-@pytest.mark.asyncio
 @pytest.mark.asyncio
 async def test_create_document_success(document_service, uow):
     """Test creating a new document successfully."""
@@ -237,7 +248,7 @@ async def test_create_document_invalid_assigned_user(document_service, uow):
 
 
 @pytest.mark.asyncio
-async def test_get_all_documents_paginated_success(document_service, uow):
+async def test_get_all_documents_paginated_success(document_service, uow, superuser):
     """Test retrieving documents with pagination."""
     # Create test documents
     for i in range(15):
@@ -266,6 +277,7 @@ async def test_get_all_documents_paginated_success(document_service, uow):
 
     result = await document_service.get_all_documents_paginated(
         filters=DocumentFilterParams(**{"page": 1, "page_size": 10}),
+        current_user=superuser,
     )
 
     assert not isinstance(result, Error)
@@ -278,7 +290,9 @@ async def test_get_all_documents_paginated_success(document_service, uow):
 
 
 @pytest.mark.asyncio
-async def test_get_all_documents_paginated_with_filters(document_service, uow):
+async def test_get_all_documents_paginated_with_filters(
+    document_service, uow, superuser
+):
     """Test retrieving documents with filters."""
     # Create documents with different categories
     category_id_2 = uuid4()
@@ -337,7 +351,8 @@ async def test_get_all_documents_paginated_with_filters(document_service, uow):
     result = await document_service.get_all_documents_paginated(
         filters=DocumentFilterParams(
             **{"page": 1, "page_size": 10, "category_id": uow.test_category_id}
-        )
+        ),
+        current_user=superuser,
     )
 
     assert not isinstance(result, Error)
@@ -346,10 +361,11 @@ async def test_get_all_documents_paginated_with_filters(document_service, uow):
 
 
 @pytest.mark.asyncio
-async def test_get_all_documents_empty(document_service):
+async def test_get_all_documents_empty(document_service, superuser):
     """Test retrieving documents when none exist."""
     result = await document_service.get_all_documents_paginated(
-        filters=DocumentFilterParams(**{"page": 1, "page_size": 10})
+        filters=DocumentFilterParams(**{"page": 1, "page_size": 10}),
+        current_user=superuser,
     )
 
     assert not isinstance(result, Error)
@@ -375,6 +391,7 @@ async def test_get_documents_paginated_with_user_filter_created_by(
         username="user1",
         password="hashed",
         is_active=True,
+        is_superuser=True,
     )
     uow.user_repository.users[user2_id] = User(
         id=user2_id,
@@ -435,13 +452,8 @@ async def test_get_documents_paginated_with_user_filter_created_by(
 
     # Get documents for user1
     result = await document_service.get_all_documents_paginated(
-        filters=DocumentFilterParams(
-            **{
-                "page": 1,
-                "page_size": 10,
-            }
-        ),
-        user_id=user1_id,
+        filters=DocumentFilterParams(**{"page": 1, "page_size": 10, "only_my": True}),
+        current_user=uow.user_repository.users[user1_id],
     )
 
     assert not isinstance(result, Error)
@@ -466,6 +478,7 @@ async def test_get_documents_paginated_with_user_filter_assigned_to(
         username="user1",
         password="hashed",
         is_active=True,
+        is_superuser=True,
     )
     uow.user_repository.users[user2_id] = User(
         id=user2_id,
@@ -526,13 +539,8 @@ async def test_get_documents_paginated_with_user_filter_assigned_to(
 
     # Get documents for user1
     result = await document_service.get_all_documents_paginated(
-        filters=DocumentFilterParams(
-            **{
-                "page": 1,
-                "page_size": 10,
-            }
-        ),
-        user_id=user1_id,
+        filters=DocumentFilterParams(**{"page": 1, "page_size": 10, "only_my": True}),
+        current_user=uow.user_repository.users[user1_id],
     )
 
     assert not isinstance(result, Error)
@@ -559,6 +567,7 @@ async def test_get_documents_paginated_with_user_filter_shared_with_user(
         username="shareduser",
         password="hashed",
         is_active=True,
+        is_superuser=True,
     )
 
     # Create documents owned by test user
@@ -604,13 +613,8 @@ async def test_get_documents_paginated_with_user_filter_shared_with_user(
 
     # Get documents for user1
     result = await document_service.get_all_documents_paginated(
-        filters=DocumentFilterParams(
-            **{
-                "page": 1,
-                "page_size": 10,
-            }
-        ),
-        user_id=user1_id,
+        filters=DocumentFilterParams(**{"page": 1, "page_size": 10, "only_my": True}),
+        current_user=uow.user_repository.users[user1_id],
     )
 
     assert not isinstance(result, Error)
@@ -637,6 +641,7 @@ async def test_get_documents_paginated_shared_not_yet_started(document_service, 
         username="futureuser",
         password="hashed",
         is_active=True,
+        is_superuser=True,
     )
 
     # Create a document owned by test user
@@ -676,8 +681,8 @@ async def test_get_documents_paginated_shared_not_yet_started(document_service, 
 
     # Get documents for user1
     result = await document_service.get_all_documents_paginated(
-        filters=DocumentFilterParams(**{"page": 1, "page_size": 10}),
-        user_id=user1_id,
+        filters=DocumentFilterParams(**{"page": 1, "page_size": 10, "only_my": True}),
+        current_user=uow.user_repository.users[user1_id],
     )
 
     assert not isinstance(result, Error)
@@ -703,6 +708,7 @@ async def test_get_documents_paginated_shared_expired(document_service, uow):
         username="expireduser",
         password="hashed",
         is_active=True,
+        is_superuser=True,
     )
 
     # Create a document owned by test user
@@ -742,7 +748,8 @@ async def test_get_documents_paginated_shared_expired(document_service, uow):
 
     # Get documents for user1
     result = await document_service.get_all_documents_paginated(
-        filters=DocumentFilterParams(**{"page": 1, "page_size": 10}), user_id=user1_id
+        filters=DocumentFilterParams(**{"page": 1, "page_size": 10, "only_my": True}),
+        current_user=uow.user_repository.users[user1_id],
     )
 
     assert not isinstance(result, Error)
@@ -768,6 +775,7 @@ async def test_get_documents_paginated_shared_without_date_constraints(
         username="permuser",
         password="hashed",
         is_active=True,
+        is_superuser=True,
     )
 
     # Create a document owned by test user
@@ -806,13 +814,8 @@ async def test_get_documents_paginated_shared_without_date_constraints(
 
     # Get documents for user1
     result = await document_service.get_all_documents_paginated(
-        filters=DocumentFilterParams(
-            **{
-                "page": 1,
-                "page_size": 10,
-            }
-        ),
-        user_id=user1_id,
+        filters=DocumentFilterParams(**{"page": 1, "page_size": 10, "only_my": True}),
+        current_user=uow.user_repository.users[user1_id],
     )
 
     assert not isinstance(result, Error)
@@ -841,6 +844,7 @@ async def test_get_documents_paginated_user_multiple_access_types(
         username="multiaccess",
         password="hashed",
         is_active=True,
+        is_superuser=True,
     )
     uow.user_repository.users[user2_id] = User(
         id=user2_id,
@@ -951,8 +955,8 @@ async def test_get_documents_paginated_user_multiple_access_types(
 
     # Get documents for user1
     result = await document_service.get_all_documents_paginated(
-        filters=DocumentFilterParams(**{"page": 1, "page_size": 10}),
-        user_id=user1_id,
+        filters=DocumentFilterParams(**{"page": 1, "page_size": 10, "only_my": True}),
+        current_user=uow.user_repository.users[user1_id],
     )
 
     assert not isinstance(result, Error)
@@ -981,6 +985,7 @@ async def test_get_documents_paginated_user_filter_with_category_filter(
         username="filteruser",
         password="hashed",
         is_active=True,
+        is_superuser=True,
     )
 
     # Create another category
@@ -1044,9 +1049,10 @@ async def test_get_documents_paginated_user_filter_with_category_filter(
                 "page": 1,
                 "page_size": 10,
                 "category_id": uow.test_category_id,
+                "only_my": True,
             }
         ),
-        user_id=user1_id,
+        current_user=uow.user_repository.users[user1_id],
     )
 
     assert not isinstance(result, Error)
@@ -1525,7 +1531,9 @@ async def test_archive_document_not_found(document_service, uow):
 
 
 @pytest.mark.asyncio
-async def test_get_documents_excludes_archived_by_default(document_service, uow):
+async def test_get_documents_excludes_archived_by_default(
+    document_service, uow, superuser
+):
     """Test that get_documents excludes archived documents by default."""
     from configuration.models import Tag
 
@@ -1568,6 +1576,7 @@ async def test_get_documents_excludes_archived_by_default(document_service, uow)
     # Get documents without specifying archive parameter (should default to False)
     result = await document_service.get_all_documents_paginated(
         filters=DocumentFilterParams(**{"page": 1, "page_size": 10}),
+        current_user=superuser,
     )
 
     assert not isinstance(result, Error)
@@ -1578,7 +1587,7 @@ async def test_get_documents_excludes_archived_by_default(document_service, uow)
 
 
 @pytest.mark.asyncio
-async def test_get_documents_with_archive_filter_true(document_service, uow):
+async def test_get_documents_with_archive_filter_true(document_service, uow, superuser):
     """Test that get_documents returns archived documents when archive=True."""
     from configuration.models import Tag
 
@@ -1620,13 +1629,8 @@ async def test_get_documents_with_archive_filter_true(document_service, uow):
 
     # Get archived documents
     result = await document_service.get_all_documents_paginated(
-        filters=DocumentFilterParams(
-            **{
-                "page": 1,
-                "page_size": 10,
-                "archive": True,
-            }
-        ),
+        filters=DocumentFilterParams(**{"page": 1, "page_size": 10, "archive": True}),
+        current_user=superuser,
     )
 
     assert not isinstance(result, Error)
