@@ -193,34 +193,9 @@ async def update_document(
 
 
 @router.patch(
-    "/documents/{document_id}/archive/me",
-    response_model=DocumentResponse,
-    dependencies=[Depends(require_permission("documents.archive_my"))],
-    description="Required permission: documents.archive_my",
-)
-@inject
-async def archive_my_document(
-    document_id: UUID4,
-    current_user: CurrentUser,
-    document_service: DocumentService = Depends(Provide["document_service"]),
-) -> DocumentResponse:
-    response = await document_service.archive_document(
-        document_id=document_id,
-        current_user_id=current_user.id,
-        user_id=current_user.id,
-    )
-
-    if isinstance(response, Error):
-        raise HTTPException(status_code=response.code, detail=response.detail)
-
-    return DocumentResponse.model_validate(response)
-
-
-@router.patch(
     "/documents/{document_id}/archive",
     response_model=DocumentResponse,
-    dependencies=[Depends(require_permission("documents.archive"))],
-    description="Required permission: documents.archive",
+    description="Required permission: documents.archive | documents.archive_my",
 )
 @inject
 async def archive_document(
@@ -230,7 +205,7 @@ async def archive_document(
 ) -> DocumentResponse:
     response = await document_service.archive_document(
         document_id=document_id,
-        current_user_id=current_user.id,
+        current_user=current_user,
     )
 
     if isinstance(response, Error):

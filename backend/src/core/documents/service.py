@@ -235,7 +235,7 @@ class DocumentService(Protocol):
     ) -> str | Error: ...
 
     async def archive_document(
-        self, document_id: UUID4, current_user_id: UUID4, user_id: UUID4 | None = None
+        self, document_id: UUID4, current_user: User
     ) -> Document | Error: ...
 
     async def create_comment(
@@ -959,8 +959,16 @@ class DocumentServiceImpl(DocumentService):
         return version.document_file
 
     async def archive_document(
-        self, document_id: UUID4, current_user_id: UUID4, user_id: UUID4 | None = None
+        self, document_id: UUID4, current_user: User
     ) -> Document | Error:
+        result = await _permission_checker(current_user, "documents.archive", "documents.archive_my")
+        if isinstance(result, Error):
+            return result
+
+        can_archive_all = result is None or "documents.archive" in result
+        user_id = None if can_archive_all else current_user.id
+        current_user_id = current_user.id
+
         logger.info("Archiving document (id=%s)", document_id)
 
         async with self._unit_of_work as uow:
