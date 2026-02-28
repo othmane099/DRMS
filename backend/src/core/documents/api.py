@@ -398,39 +398,19 @@ async def preview_document_version(
 
 
 @router.get(
-    "/documents/{document_id}/comments/me",
+    "/documents/{document_id}/comments",
     response_model=list[DocumentCommentResponse],
-    dependencies=[Depends(require_permission("comments.list_my"))],
-    description="Required permission: comments.list_my",
+    description="Required permission: comments.list | comments.list_my",
 )
 @inject
-async def get_my_document_comments(
+async def get_document_comments(
     document_id: UUID4,
     current_user: CurrentUser,
     document_service: DocumentService = Depends(Provide["document_service"]),
 ) -> list[DocumentCommentResponse]:
     response = await document_service.get_document_comments(
-        document_id=document_id, user_id=current_user.id
+        document_id=document_id, current_user=current_user
     )
-
-    if isinstance(response, Error):
-        raise HTTPException(status_code=response.code, detail=response.detail)
-
-    return [DocumentCommentResponse.model_validate(comment) for comment in response]
-
-
-@router.get(
-    "/documents/{document_id}/comments",
-    response_model=list[DocumentCommentResponse],
-    dependencies=[Depends(require_permission("comments.list"))],
-    description="Required permission: comments.list",
-)
-@inject
-async def get_document_comments(
-    document_id: UUID4,
-    document_service: DocumentService = Depends(Provide["document_service"]),
-) -> list[DocumentCommentResponse]:
-    response = await document_service.get_document_comments(document_id=document_id)
 
     if isinstance(response, Error):
         raise HTTPException(status_code=response.code, detail=response.detail)
