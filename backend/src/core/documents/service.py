@@ -211,7 +211,7 @@ class DocumentService(Protocol):
     ) -> Message | Error: ...
 
     async def get_document_by_id(
-        self, document_id: UUID4, user_id: UUID4 | None = None
+        self, document_id: UUID4, current_user: User
     ) -> Document | Error: ...
 
     async def get_document_file_path(
@@ -728,8 +728,15 @@ class DocumentServiceImpl(DocumentService):
         return Message(detail="Document deleted successfully")
 
     async def get_document_by_id(
-        self, document_id: UUID4, user_id: UUID4 | None = None
+        self, document_id: UUID4, current_user: User
     ) -> Document | Error:
+        result = await _permission_checker(current_user, "documents.view", "documents.view_my")
+        if isinstance(result, Error):
+            return result
+
+        can_view_all = result is None or "documents.view" in result
+        user_id = None if can_view_all else current_user.id
+
         logger.info("Fetching document (id=%s)", document_id)
 
         async with self._unit_of_work as uow:
