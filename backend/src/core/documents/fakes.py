@@ -930,8 +930,12 @@ class FakeDocumentService(DocumentService):
         return version
 
     async def get_version_file_path(
-        self, document_id: UUID4, version_id: UUID4, user_id: UUID4 | None = None
+        self,
+        document_id: UUID4,
+        version_id: UUID4,
+        current_user=None,
     ) -> str | Error:
+        user_id = current_user.id if current_user else None
         document = self.documents.get(document_id)
         if not document or (
             user_id

@@ -328,50 +328,18 @@ async def create_new_version(
 
 
 @router.get(
-    "/documents/{document_id}/versions/{version_id}/download/me",
-    dependencies=[Depends(require_permission("documents.download_version_my"))],
-    description="Required permission: documents.download_version_my",
+    "/documents/{document_id}/versions/{version_id}/download",
+    description="Required permission: documents.download_version | documents.download_version_my",
 )
 @inject
-async def download_my_document_version(
+async def download_document_version(
     document_id: UUID4,
     version_id: UUID4,
     current_user: CurrentUser,
     document_service: DocumentService = Depends(Provide["document_service"]),
 ) -> FileResponse:
     file_path_response = await document_service.get_version_file_path(
-        document_id, version_id, user_id=current_user.id
-    )
-
-    if isinstance(file_path_response, Error):
-        raise HTTPException(
-            status_code=file_path_response.code, detail=file_path_response.detail
-        )
-
-    file_path = Path(file_path_response)
-    if not file_path.exists():
-        raise HTTPException(status_code=404, detail="Document file not found on disk")
-
-    return FileResponse(
-        path=str(file_path),
-        media_type="application/octet-stream",
-        filename=file_path.name,
-    )
-
-
-@router.get(
-    "/documents/{document_id}/versions/{version_id}/download",
-    dependencies=[Depends(require_permission("documents.download_version"))],
-    description="Required permission: documents.download_version",
-)
-@inject
-async def download_document_version(
-    document_id: UUID4,
-    version_id: UUID4,
-    document_service: DocumentService = Depends(Provide["document_service"]),
-) -> FileResponse:
-    file_path_response = await document_service.get_version_file_path(
-        document_id, version_id
+        document_id, version_id, current_user=current_user
     )
 
     if isinstance(file_path_response, Error):
@@ -403,7 +371,7 @@ async def preview_my_document_version(
     document_service: DocumentService = Depends(Provide["document_service"]),
 ) -> FileResponse:
     file_path_response = await document_service.get_version_file_path(
-        document_id, version_id, user_id=current_user.id
+        document_id, version_id, current_user=current_user
     )
 
     if isinstance(file_path_response, Error):
