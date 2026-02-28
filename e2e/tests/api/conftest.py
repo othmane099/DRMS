@@ -17,7 +17,7 @@ MANAGER_PERMS = [
     "documents.delete", "documents.archive", "documents.download", "documents.share",
     "documents.view_version", "documents.create_version", "documents.download_version",
     "documents.preview_version", "documents.history",
-    "documents.list_my", "documents.view_my", "documents.create_my", "documents.update_my",
+    "documents.list_my", "documents.view_my", "documents.update_my",
     "documents.delete_my", "documents.archive_my", "documents.download_my", "documents.share_my",
     "documents.view_version_my", "documents.create_version_my", "documents.history_my",
     "reminders.list", "reminders.view", "reminders.create", "reminders.update", "reminders.delete",
@@ -33,7 +33,7 @@ CLIENT_PERMS = [
 ]
 
 EMPLOYEE_PERMS = [
-    "documents.create_my", "documents.list_my", "documents.view_my", "documents.update_my",
+    "documents.list_my", "documents.view_my", "documents.update_my",
     "documents.delete_my", "documents.archive_my", "documents.download_my", "documents.share_my",
     "documents.create_version_my",
     "reminders.create_my", "reminders.list_my", "reminders.view_my",
@@ -218,7 +218,6 @@ def create_document(
 ) -> dict:
     # Append a short UUID suffix so names are globally unique across repeated runs.
     unique_name = f"{name}-{uuid.uuid4().hex[:6]}"
-    # POST /documents is the only create endpoint; documents.create_my also grants access to it
     resp = httpx.post(
         f"{API}/documents",
         data={

@@ -108,7 +108,7 @@ def test_bob_cannot_create_document(
     bob_headers, bob,
     shared_category, shared_subcategory, shared_stage,
 ):
-    """Bob has no documents.create or documents.create_my — POST must return 403."""
+    """Bob has no documents.create — POST must return 403."""
     resp = httpx.post(
         f"{API}/documents",
         data={
@@ -233,7 +233,6 @@ def test_global_vs_my_scope_counts(
 
 def test_carol_global_endpoints_return_403(carol_headers):
     """Carol has only my-scope permissions; global document endpoints must return 403."""
-    # POST /documents is intentionally excluded: documents.create_my also grants it.
     fake_id = "00000000-0000-0000-0000-000000000000"
     endpoints = [
         ("GET",    f"{API}/documents"),
