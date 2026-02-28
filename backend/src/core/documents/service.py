@@ -234,7 +234,10 @@ class DocumentService(Protocol):
     ) -> VersionHistory | Error: ...
 
     async def get_version_file_path(
-        self, document_id: UUID4, version_id: UUID4, user_id: UUID4 | None = None
+        self,
+        document_id: UUID4,
+        version_id: UUID4,
+        current_user: User | None = None,
     ) -> str | Error: ...
 
     async def archive_document(
@@ -961,13 +964,28 @@ class DocumentServiceImpl(DocumentService):
         return version
 
     async def get_version_file_path(
-        self, document_id: UUID4, version_id: UUID4, user_id: UUID4 | None = None
+        self,
+        document_id: UUID4,
+        version_id: UUID4,
+        current_user: User | None = None,
     ) -> str | Error:
         logger.info(
             "Fetching version file path (document_id=%s, version_id=%s)",
             document_id,
             version_id,
         )
+
+        user_id: UUID4 | None = None
+        if current_user is not None:
+            result = await _permission_checker(
+                current_user,
+                "documents.download_version",
+                "documents.download_version_my",
+            )
+            if isinstance(result, Error):
+                return result
+            can_access_all = result is None or "documents.download_version" in result
+            user_id = None if can_access_all else current_user.id
 
         async with self._unit_of_work as uow:
             document = await uow.document_repository.get_document_by_id(
