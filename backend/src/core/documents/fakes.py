@@ -879,13 +879,14 @@ class FakeDocumentService(DocumentService):
         return document
 
     async def get_document_file_path(
-        self, document_id: UUID4, user_id: UUID4 | None = None
+        self,
+        document_id: UUID4,
+        current_user=None,
+        full_permission: str = "documents.download",
+        my_permission: str = "documents.download_my",
     ) -> str | Error:
         document = self.documents.get(document_id)
-        if not document or (
-            user_id
-            and (document.created_by != user_id or document.assigned_to != user_id)
-        ):
+        if not document:
             return Error(detail="Document not found", code=status.HTTP_404_NOT_FOUND)
         return f"uploads/documents/{document_id}.pdf"
 
