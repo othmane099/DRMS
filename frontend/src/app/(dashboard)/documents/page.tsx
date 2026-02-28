@@ -17,6 +17,7 @@ export default function DocumentsPage() {
         basePath="/documents"
         permissions={{
           list: 'documents.list',
+          listMy: 'documents.list_my',
           create: 'documents.create',
           edit: 'documents.update',
           delete: 'documents.delete',

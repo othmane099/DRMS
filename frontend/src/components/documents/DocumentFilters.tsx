@@ -14,6 +14,9 @@ interface DocumentFiltersProps {
   onStageChange: (value: string) => void;
   onCreatedDateChange: (value: string) => void;
   onArchiveChange: (value: string) => void;
+  showOnlyMyFilter?: boolean;
+  onlyMy?: boolean;
+  onOnlyMyChange?: (value: boolean) => void;
 }
 
 export function DocumentFilters({
@@ -29,6 +32,9 @@ export function DocumentFilters({
   onStageChange,
   onCreatedDateChange,
   onArchiveChange,
+  showOnlyMyFilter = false,
+  onlyMy = false,
+  onOnlyMyChange,
 }: DocumentFiltersProps) {
   const categoryOptions = [
     { value: '', label: 'All Categories' },
@@ -52,7 +58,7 @@ export function DocumentFilters({
   ];
 
   return (
-    <div className="flex flex-wrap gap-4">
+    <div className="flex flex-wrap gap-4 items-center">
       <Input
         type="text"
         placeholder="Search documents..."
@@ -85,6 +91,17 @@ export function DocumentFilters({
         options={archiveOptions}
         className="w-full sm:w-48"
       />
+      {showOnlyMyFilter && (
+        <label className="flex items-center gap-2 cursor-pointer select-none text-sm text-gray-700 whitespace-nowrap">
+          <input
+            type="checkbox"
+            checked={onlyMy}
+            onChange={(e) => onOnlyMyChange?.(e.target.checked)}
+            className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+          />
+          My documents only
+        </label>
+      )}
     </div>
   );
 }

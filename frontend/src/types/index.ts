@@ -336,6 +336,7 @@ export interface DocumentFilters {
   created_date?: string;
   search?: string;
   archive?: boolean;
+  only_my?: boolean;
   page?: number;
   page_size?: number;
 }

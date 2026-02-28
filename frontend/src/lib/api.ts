@@ -422,6 +422,7 @@ class ApiClient {
       if (filters.created_date) params.set('created_date', filters.created_date);
       if (filters.search) params.set('search', filters.search);
       if (filters.archive !== undefined) params.set('archive', String(filters.archive));
+      if (filters.only_my) params.set('only_my', 'true');
       if (filters.page) params.set('page', String(filters.page));
       if (filters.page_size) params.set('page_size', String(filters.page_size));
     }
@@ -506,23 +507,6 @@ class ApiClient {
   }
 
   // My document endpoints
-  async getMyDocuments(filters?: DocumentFilters): Promise<PaginatedResponse<Document>> {
-    const params = new URLSearchParams();
-    if (filters) {
-      if (filters.category_id) params.set('category_id', filters.category_id);
-      if (filters.stage_id) params.set('stage_id', filters.stage_id);
-      if (filters.created_date) params.set('created_date', filters.created_date);
-      if (filters.search) params.set('search', filters.search);
-      if (filters.archive !== undefined) params.set('archive', String(filters.archive));
-      if (filters.page) params.set('page', String(filters.page));
-      if (filters.page_size) params.set('page_size', String(filters.page_size));
-    }
-    const query = params.toString();
-    return this.request<PaginatedResponse<Document>>(
-      `/api/v1/documents/me${query ? `?${query}` : ''}`
-    );
-  }
-
   async getMyDocument(id: string): Promise<Document> {
     return this.request<Document>(`/api/v1/documents/${id}/me`);
   }
