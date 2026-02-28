@@ -85,7 +85,6 @@ async def get_documents(
 @router.post(
     "/documents",
     response_model=DocumentResponse,
-    dependencies=[Depends(require_permission("documents.create"))],
     description="Required permission: documents.create",
 )
 @inject
@@ -117,7 +116,7 @@ async def create_document(
     response = await document_service.create_document(
         document_create=document_create,
         document_file=document,
-        current_user_id=current_user.id,
+        current_user=current_user,
         background_tasks=background_tasks,
     )
 
