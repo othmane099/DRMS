@@ -255,7 +255,7 @@ class DocumentService(Protocol):
     ) -> DocumentComment | Error: ...
 
     async def get_document_comments(
-        self, document_id: UUID4, user_id: UUID4 | None = None
+        self, document_id: UUID4, current_user: User | None = None
     ) -> list[DocumentComment] | Error: ...
 
     async def share_document(
@@ -1127,9 +1127,19 @@ class DocumentServiceImpl(DocumentService):
         return comment
 
     async def get_document_comments(
-        self, document_id: UUID4, user_id: UUID4 | None = None
+        self, document_id: UUID4, current_user: User | None = None
     ) -> list[DocumentComment] | Error:
         logger.info("Fetching comments for document (document_id=%s)", document_id)
+
+        user_id: UUID4 | None = None
+        if current_user is not None:
+            result = await _permission_checker(
+                current_user, "comments.list", "comments.list_my"
+            )
+            if isinstance(result, Error):
+                return result
+            can_list_all = result is None or "comments.list" in result
+            user_id = None if can_list_all else current_user.id
 
         async with self._unit_of_work as uow:
             # Verify document exists

@@ -1001,8 +1001,9 @@ class FakeDocumentService(DocumentService):
         return comment
 
     async def get_document_comments(
-        self, document_id: UUID4, user_id: UUID4 | None = None
+        self, document_id: UUID4, current_user=None
     ) -> list[DocumentComment] | Error:
+        user_id = current_user.id if current_user else None
         # Check if document exists
         document = self.documents.get(document_id)
         if not document or (
