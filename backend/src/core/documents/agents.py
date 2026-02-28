@@ -3,7 +3,7 @@ import logging
 import re
 from typing import Any, TypedDict
 
-from langchain_core.messages import HumanMessage, SystemMessage
+from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.prompts import PromptTemplate
 from langchain_ollama import ChatOllama
@@ -249,6 +249,39 @@ async def generate_summary(text: str, document_name: str) -> str:
         | StrOutputParser()
     )
     return await combine_chain.ainvoke({"text": "\n\n".join(chunk_summaries)})
+
+
+async def chat_with_document(
+    context: str,
+    document_name: str,
+    history: list[dict[str, str]],
+    user_message: str,
+) -> str:
+    if context:
+        system_content = (
+            f'You are a helpful assistant answering questions about "{document_name}".\n'
+            "Answer using only the relevant excerpts below. "
+            "If the answer is not in them, say so clearly.\n\n"
+            f"Relevant excerpts:\n{context}"
+        )
+    else:
+        system_content = (
+            f'You are a helpful assistant. The document "{document_name}" '
+            "content is unavailable (unsupported format or indexing in progress). "
+            "Let the user know."
+        )
+
+    lc_messages: list = [SystemMessage(content=system_content)]
+    for msg in history:
+        lc_messages.append(
+            HumanMessage(content=msg["content"])
+            if msg["role"] == "user"
+            else AIMessage(content=msg["content"])
+        )
+    lc_messages.append(HumanMessage(content=user_message))
+
+    chain = _get_llm() | StrOutputParser()
+    return await chain.ainvoke(lc_messages)
 
 
 async def format_results(message: str, rows: list[dict[str, Any]]) -> str:

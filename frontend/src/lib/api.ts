@@ -48,6 +48,7 @@ import {
   DocumentReminder,
   DashboardResponse, UserBasicId, PasswordUpdate, Message,
   DocumentSearchResponse,
+  DocumentChatResponse,
 } from '@/types';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
@@ -1097,6 +1098,28 @@ class ApiClient {
       method: 'POST',
       body: JSON.stringify({ message }),
     });
+  }
+
+  async chatWithDocumentVersion(
+    documentId: string,
+    versionId: string,
+    message: string
+  ): Promise<DocumentChatResponse> {
+    return this.request<DocumentChatResponse>(
+      `/api/v1/documents/${documentId}/versions/${versionId}/chat`,
+      { method: 'POST', body: JSON.stringify({ message }) }
+    );
+  }
+
+  async chatMyDocumentVersion(
+    documentId: string,
+    versionId: string,
+    message: string
+  ): Promise<DocumentChatResponse> {
+    return this.request<DocumentChatResponse>(
+      `/api/v1/documents/${documentId}/versions/${versionId}/chat/me`,
+      { method: 'POST', body: JSON.stringify({ message }) }
+    );
   }
 }
 

@@ -2,13 +2,14 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { Button, Card, Pagination, LoadingOverlay, Modal, Toast } from '@/components/ui';
-import { DocumentTable, DocumentFilters, DocumentModal, ShareLinkModal } from '@/components/documents';
+import { DocumentTable, DocumentFilters, DocumentModal, ShareLinkModal, DocumentChatModal } from '@/components/documents';
 import { CanAccess } from '@/components/auth/CanAccess';
 import { AccessDenied } from '@/components/auth/AccessDenied';
 import { usePermissions } from '@/hooks/usePermissions';
 import { api } from '@/lib/api';
 import {
   Document,
+  DocumentVersion,
   PaginatedResponse,
   DocumentFilters as DocumentFiltersType,
   ApiError,
@@ -29,6 +30,7 @@ interface DocumentsListProps {
     delete: string;
     share: string;
     archive: string;
+    chat?: string;
   };
   apiFunctions: {
     getDocuments: (filters: DocumentFiltersType) => Promise<PaginatedResponse<Document>>;
@@ -36,6 +38,8 @@ interface DocumentsListProps {
     archiveDocument: (id: string) => Promise<Document>;
     updateDocument: (id: string, data: any) => Promise<Document>;
     generateShareLink: (id: string, data: any) => Promise<ShareLinkResponse>;
+    chatWithVersion?: (docId: string, versionId: string, msg: string) => Promise<{ message: string }>;
+    getVersions?: (id: string) => Promise<DocumentVersion[]>;
   };
 }
 
@@ -57,6 +61,12 @@ export function DocumentsList({ title, description, basePath, permissions, apiFu
   const [isDeleting, setIsDeleting] = useState(false);
   const [showShareLinkModal, setShowShareLinkModal] = useState(false);
   const [documentToShare, setDocumentToShare] = useState<Document | null>(null);
+
+  // Chat state
+  const [showChatModal, setShowChatModal] = useState(false);
+  const [chatDocument, setChatDocument] = useState<Document | null>(null);
+  const [chatVersionId, setChatVersionId] = useState<string | null>(null);
+  const [isFetchingChatVersion, setIsFetchingChatVersion] = useState(false);
 
   // Toast notification state
   const [toast, setToast] = useState<{
@@ -213,6 +223,27 @@ export function DocumentsList({ title, description, basePath, permissions, apiFu
     showToast('Share link generated successfully', 'success');
   };
 
+  const handleChatClick = async (document: Document) => {
+    if (!apiFunctions.chatWithVersion) return;
+    setChatDocument(document);
+    setIsFetchingChatVersion(true);
+    try {
+      const getVersions = apiFunctions.getVersions ?? ((id: string) => api.getDocumentVersions(id));
+      const versions = await getVersions(document.id);
+      const current = versions.find((v) => v.is_current) ?? versions[0];
+      if (!current) {
+        showToast('No version found for this document', 'error');
+        return;
+      }
+      setChatVersionId(current.id);
+      setShowChatModal(true);
+    } catch {
+      showToast('Failed to load document version', 'error');
+    } finally {
+      setIsFetchingChatVersion(false);
+    }
+  };
+
   const showToast = (message: string, type: 'success' | 'error' | 'info' | 'warning' = 'success') => {
     setToast({ message, type, isVisible: true });
   };
@@ -305,10 +336,12 @@ export function DocumentsList({ title, description, basePath, permissions, apiFu
                   onDelete={handleDeleteDocument}
                   onArchive={handleArchiveDocument}
                   onShare={handleShareDocument}
+                  onChat={apiFunctions.chatWithVersion ? handleChatClick : undefined}
                   editPermission={permissions.edit}
                   deletePermission={permissions.delete}
                   sharePermission={permissions.share}
                   archivePermission={permissions.archive}
+                  chatPermission={permissions.chat}
                   basePath={basePath}
                 />
                 <Pagination
@@ -393,6 +426,20 @@ export function DocumentsList({ title, description, basePath, permissions, apiFu
         onSuccess={handleShareLinkSuccess}
         generateLinkFn={apiFunctions.generateShareLink}
       />
+
+      {/* Chat Modal */}
+      {chatDocument && chatVersionId && apiFunctions.chatWithVersion && (
+        <DocumentChatModal
+          isOpen={showChatModal}
+          onClose={() => {
+            setShowChatModal(false);
+            setChatDocument(null);
+            setChatVersionId(null);
+          }}
+          documentName={chatDocument.name}
+          onSend={(msg) => apiFunctions.chatWithVersion!(chatDocument.id, chatVersionId, msg)}
+        />
+      )}
 
       {/* Toast Notification */}
       <Toast

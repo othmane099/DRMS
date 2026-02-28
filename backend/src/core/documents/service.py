@@ -14,7 +14,14 @@ from pydantic import UUID4
 from starlette import status
 
 from config import settings
-from core.documents.agents import extract_filters, format_results, generate_summary
+from core.documents.agents import (
+    chat_with_document,
+    extract_filters,
+    format_results,
+    generate_summary,
+)
+from core.documents.chat_store import load_history, save_history
+from core.documents.rag import build_vectorstore, retrieve_context
 from core.documents.schemas import (
     DocumentCommentCreate,
     DocumentCreate,
@@ -83,6 +90,18 @@ async def _run_document_summary(
         logger.exception(
             "Summary task failed (version_id=%s, document=%r)", version_id, document_name
         )
+
+
+async def _run_document_embedding(
+    version_id: UUID,
+    document_file: str,
+) -> None:
+    logger.info("Embedding task started (version_id=%s)", version_id)
+    try:
+        await build_vectorstore(str(version_id), document_file)
+        logger.info("Embedding task completed (version_id=%s)", version_id)
+    except Exception:
+        logger.exception("Embedding task failed (version_id=%s)", version_id)
 
 
 ALLOWED_EXTENSIONS = {
@@ -214,6 +233,14 @@ class DocumentService(Protocol):
     async def search_documents(
         self, request: DocumentSearchRequest, user_id: UUID4 | None = None
     ) -> DocumentSearchResponse | Error: ...
+
+    async def chat_with_document_version(
+        self,
+        document_id: UUID4,
+        version_id: UUID4,
+        user_message: str,
+        user_id: UUID4 | None = None,
+    ) -> str | Error: ...
 
 
 class DocumentServiceImpl(DocumentService):
@@ -420,6 +447,7 @@ class DocumentServiceImpl(DocumentService):
 
         if background_tasks is not None:
             background_tasks.add_task(_run_document_summary, version_id, doc_name, doc_file)
+            background_tasks.add_task(_run_document_embedding, version_id, doc_file)
 
         logger.info(
             "Document created successfully (id=%s, name=%s)",
@@ -793,6 +821,7 @@ class DocumentServiceImpl(DocumentService):
 
         if background_tasks is not None:
             background_tasks.add_task(_run_document_summary, version_id, doc_name, doc_file)
+            background_tasks.add_task(_run_document_embedding, version_id, doc_file)
 
         logger.info(
             "New version created successfully (document_id=%s, version=%d)",
@@ -1399,3 +1428,35 @@ class DocumentServiceImpl(DocumentService):
             )
 
         return DocumentSearchResponse(message=message)
+
+    async def chat_with_document_version(
+        self,
+        document_id: UUID4,
+        version_id: UUID4,
+        user_message: str,
+        user_id: UUID4 | None = None,
+    ) -> str | Error:
+        logger.info(
+            "Chat with document version (document_id=%s, version_id=%s)", document_id, version_id
+        )
+
+        async with self._unit_of_work as uow:
+            document = await uow.document_repository.get_document_by_id(
+                document_id, user_id=user_id
+            )
+            if not document:
+                return Error(detail="Document not found", code=status.HTTP_404_NOT_FOUND)
+            versions = await uow.document_repository.get_version_histories(document_id)
+            version = next((v for v in versions if v.id == version_id), None)
+            if not version:
+                return Error(detail="Version not found", code=status.HTTP_404_NOT_FOUND)
+            document_name = document.name
+
+        user_id_str = str(user_id) if user_id else "anon"
+        history = await load_history(str(document_id), str(version_id), user_id_str)
+        context = await retrieve_context(str(version_id), user_message)
+        reply = await chat_with_document(context, document_name, history, user_message)
+        history.append({"role": "user", "content": user_message})
+        history.append({"role": "assistant", "content": reply})
+        await save_history(str(document_id), str(version_id), user_id_str, history)
+        return reply

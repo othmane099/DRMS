@@ -27,6 +27,7 @@ export default function DocumentDetailPage() {
         viewReminderDetail: 'reminders.view',
         updateReminder: 'reminders.update',
         deleteReminder: 'reminders.delete',
+        chat: 'documents.chat',
       }}
       apiFunctions={{
         getDocument: (id) => api.getDocument(id),
@@ -45,6 +46,8 @@ export default function DocumentDetailPage() {
         downloadDocument: (id) => api.downloadDocument(id),
         downloadVersion: (docId, versionId) => api.downloadDocumentVersion(docId, versionId),
         updateDocument: (id, data) => api.updateDocument(id, data),
+        chatWithVersion: (docId, versionId, msg) =>
+          api.chatWithDocumentVersion(docId, versionId, msg),
       }}
       previewUrlSuffix=""
     />

@@ -18,6 +18,8 @@ from pydantic import UUID4
 
 from auth.dependencies import CurrentUser, require_any_permission, require_permission
 from core.documents.schemas import (
+    DocumentChatRequest,
+    DocumentChatResponse,
     DocumentCommentCreate,
     DocumentCommentResponse,
     DocumentCreate,
@@ -1175,3 +1177,46 @@ async def search_my_documents(
         raise HTTPException(status_code=result.code or 500, detail=result.detail)
 
     return result
+
+
+@router.post(
+    "/documents/{document_id}/versions/{version_id}/chat/me",
+    response_model=DocumentChatResponse,
+    dependencies=[Depends(require_permission("documents.chat_my"))],
+    description="Required permission: documents.chat_my",
+)
+@inject
+async def chat_my_document_version(
+    document_id: UUID4,
+    version_id: UUID4,
+    current_user: CurrentUser,
+    request: DocumentChatRequest,
+    document_service: DocumentService = Depends(Provide["document_service"]),
+) -> DocumentChatResponse:
+    result = await document_service.chat_with_document_version(
+        document_id, version_id, request.message, user_id=current_user.id
+    )
+    if isinstance(result, Error):
+        raise HTTPException(status_code=result.code, detail=result.detail)
+    return DocumentChatResponse(message=result)
+
+
+@router.post(
+    "/documents/{document_id}/versions/{version_id}/chat",
+    response_model=DocumentChatResponse,
+    dependencies=[Depends(require_permission("documents.chat"))],
+    description="Required permission: documents.chat",
+)
+@inject
+async def chat_document_version(
+    document_id: UUID4,
+    version_id: UUID4,
+    request: DocumentChatRequest,
+    document_service: DocumentService = Depends(Provide["document_service"]),
+) -> DocumentChatResponse:
+    result = await document_service.chat_with_document_version(
+        document_id, version_id, request.message
+    )
+    if isinstance(result, Error):
+        raise HTTPException(status_code=result.code, detail=result.detail)
+    return DocumentChatResponse(message=result)
