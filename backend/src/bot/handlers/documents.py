@@ -10,7 +10,7 @@ from telegram.ext import ContextTypes
 
 from auth.users.service import UserService
 from bot.keyboards import doc_detail_keyboard, doc_list_keyboard, h
-from core.documents.schemas import DocumentSearchRequest
+from core.documents.schemas import DocumentFilterParams, DocumentSearchRequest
 from core.documents.service import DocumentService
 from schemas import Error
 
@@ -68,10 +68,10 @@ async def documents(
         return
 
     result = await document_svc.get_all_documents_paginated(
-        page=1,
-        page_size=_PAGE_SIZE,
+        filters=DocumentFilterParams(
+            **{"page": 1, "page_size": _PAGE_SIZE, "archive": False}
+        ),
         user_id=user.id,
-        archive=False,
     )
 
     if isinstance(result, Error):
@@ -148,10 +148,10 @@ async def documents_callback(
     else:
         page = int(data.split(":")[1])
         result = await document_svc.get_all_documents_paginated(
-            page=page,
-            page_size=_PAGE_SIZE,
+            filters=DocumentFilterParams(
+                **{"page": page, "page_size": _PAGE_SIZE, "archive": False}
+            ),
             user_id=user.id,
-            archive=False,
         )
         if isinstance(result, Error):
             await query.edit_message_text(f"Could not fetch documents: {result.detail}")

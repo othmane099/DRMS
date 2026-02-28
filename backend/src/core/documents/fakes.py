@@ -10,10 +10,8 @@ from core.documents.repository import DocumentRepository
 from core.documents.schemas import (
     DocumentCommentCreate,
     DocumentCreate,
+    DocumentFilterParams,
     DocumentResponse,
-    DocumentSearchFilters,
-    DocumentSearchRequest,
-    DocumentSearchResponse,
     DocumentUpdate,
     PaginatedDocumentResponse,
     ShareDocumentCreate,
@@ -655,28 +653,24 @@ class FakeDocumentService(DocumentService):
 
     async def get_all_documents_paginated(
         self,
-        page: int,
-        page_size: int,
-        category_id: UUID4 | None = None,
-        stage_id: UUID4 | None = None,
-        created_date: date | None = None,
-        archive: bool = False,
+        filters: DocumentFilterParams,
         user_id: UUID4 | None = None,
-        search: str | None = None,
     ) -> PaginatedDocumentResponse | Error:
         docs = list(self.documents.values())
 
         # Apply filters
-        if category_id:
-            docs = [d for d in docs if d.category_id == category_id]
-        if stage_id:
-            docs = [d for d in docs if d.stage_id == stage_id]
-        if created_date:
+        if filters.category_id:
+            docs = [d for d in docs if d.category_id == filters.category_id]
+        if filters.stage_id:
+            docs = [d for d in docs if d.stage_id == filters.stage_id]
+        if filters.created_date:
             docs = [
-                d for d in docs if d.created_at and d.created_at.date() == created_date
+                d
+                for d in docs
+                if d.created_at and d.created_at.date() == filters.created_date
             ]
-        if search:
-            search_lower = search.lower()
+        if filters.search:
+            search_lower = filters.search.lower()
             docs = [
                 d
                 for d in docs
@@ -693,25 +687,25 @@ class FakeDocumentService(DocumentService):
                 or self._is_document_shared_with_user(d.id, user_id)
             ]
 
-        docs = [d for d in docs if d.archive == archive]
+        docs = [d for d in docs if d.archive == filters.archive]
 
         # Sort by created_at descending
         docs = sorted(docs, key=lambda x: x.created_at or date.min, reverse=True)
 
         # Pagination
-        skip = (page - 1) * page_size
-        paginated_docs = docs[skip : skip + page_size]
+        skip = (filters.page - 1) * filters.page_size
+        paginated_docs = docs[skip : skip + filters.page_size]
         total_rows = len(docs)
-        total_pages = (total_rows + page_size - 1) // page_size
+        total_pages = (total_rows + filters.page_size - 1) // filters.page_size
 
         return PaginatedDocumentResponse(
             data=[DocumentResponse.model_validate(doc) for doc in paginated_docs],
-            current_page=page,
+            current_page=filters.page,
             total_pages=total_pages,
             total_rows=total_rows,
-            page_size=page_size,
-            has_next=page < total_pages,
-            has_previous=page > 1,
+            page_size=filters.page_size,
+            has_next=filters.page < total_pages,
+            has_previous=filters.page > 1,
         )
 
     async def create_document(
@@ -719,6 +713,7 @@ class FakeDocumentService(DocumentService):
         document_create: DocumentCreate,
         document_file: UploadFile,
         current_user_id: UUID,
+        background_tasks=None,
     ) -> Document | Error:
         from auth.models import User
         from configuration.models import Category, Stage, Subcategory, Tag
@@ -917,6 +912,7 @@ class FakeDocumentService(DocumentService):
         document_id: UUID4,
         document_file: UploadFile,
         current_user_id: UUID4,
+        background_tasks=None,
         user_id: UUID4 | None = None,
     ) -> VersionHistory | Error:
         document = self.documents.get(document_id)

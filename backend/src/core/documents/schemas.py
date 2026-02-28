@@ -75,8 +75,12 @@ class DocumentFilterParams(BaseModel):
     category_id: UUID4 | None = Field(None, description="Filter by category ID")
     stage_id: UUID4 | None = Field(None, description="Filter by stage ID")
     created_date: date | None = Field(None, description="Filter by creation date")
-    archive: bool = Field(False, description="Filter by archive status (default: False)")
-    search: str | None = Field(None, description="Search in document name and description")
+    archive: bool = Field(
+        False, description="Filter by archive status (default: False)"
+    )
+    search: str | None = Field(
+        None, description="Search in document name and description"
+    )
 
 
 class PaginatedDocumentResponse(BaseModel):
