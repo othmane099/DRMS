@@ -29,6 +29,10 @@ class Settings(BaseSettings):
     OLLAMA_HOST: str = "http://localhost:11434"
     OLLAMA_MODEL: str = "llama3:8b"
     OLLAMA_MAX_ITERATIONS: int = 3
+    OLLAMA_EMBED_MODEL: str = "nomic-embed-text"
+
+    REDIS_URL: str = "redis://localhost:6379"
+    CHROMA_DIR: str = "./chroma_db"
 
     OTEL_ENABLED: bool = False
     OTEL_SERVICE_NAME: str = "drms"

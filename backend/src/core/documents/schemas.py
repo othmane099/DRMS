@@ -146,3 +146,11 @@ class DocumentSearchRequest(BaseModel):
 
 class DocumentSearchResponse(BaseModel):
     message: str
+
+
+class DocumentChatRequest(BaseModel):
+    message: Annotated[str, Field(min_length=1)]
+
+
+class DocumentChatResponse(BaseModel):
+    message: str

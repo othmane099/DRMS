@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button, Card, CardHeader, LoadingOverlay, Badge, Toast, Tabs, Modal } from '@/components/ui';
-import { DocumentModal } from '@/components/documents';
+import { DocumentModal, DocumentChatModal } from '@/components/documents';
 import { CanAccess } from '@/components/auth/CanAccess';
 import { AccessDenied } from '@/components/auth/AccessDenied';
 import { usePermissions } from '@/hooks/usePermissions';
@@ -33,6 +33,7 @@ interface DocumentDetailProps {
     viewReminderDetail: string;
     updateReminder: string;
     deleteReminder: string;
+    chat?: string;
   };
   apiFunctions: {
     getDocument: (id: string) => Promise<Document>;
@@ -51,6 +52,7 @@ interface DocumentDetailProps {
     downloadDocument: (id: string) => Promise<void>;
     downloadVersion: (docId: string, versionId: string) => Promise<void>;
     updateDocument: (id: string, data: any) => Promise<Document>;
+    chatWithVersion?: (docId: string, versionId: string, msg: string) => Promise<{ message: string }>;
   };
   previewUrlSuffix?: string; // e.g., "" or "/me"
 }
@@ -117,6 +119,10 @@ export function DocumentDetail({
   const [selectedVersionForSummary, setSelectedVersionForSummary] = useState<DocumentVersion | null>(null);
   const [showVersionSummaryModal, setShowVersionSummaryModal] = useState(false);
 
+  // Version chat modal state
+  const [chatVersion, setChatVersion] = useState<DocumentVersion | null>(null);
+  const [showVersionChatModal, setShowVersionChatModal] = useState(false);
+
   // Toast notification state
   const [toast, setToast] = useState<{
     message: string;
@@ -132,6 +138,7 @@ export function DocumentDetail({
   const canViewDocuments = hasAnyPermission([permissions.view]);
   const canViewVersions = hasAnyPermission([permissions.viewVersion]);
   const canCreateVersion = hasAnyPermission([permissions.createVersion]);
+  const canChat = permissions.chat ? hasAnyPermission([permissions.chat]) : false;
   const canViewComments = hasAnyPermission([permissions.viewComments]);
   const canCreateComment = hasAnyPermission([permissions.createComment]);
   const canShareDocument = hasAnyPermission([permissions.share]);
@@ -840,6 +847,20 @@ export function DocumentDetail({
                                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
                                 </svg>
                               </button>
+                              {canChat && apiFunctions.chatWithVersion && (
+                                <button
+                                  onClick={() => {
+                                    setChatVersion(version);
+                                    setShowVersionChatModal(true);
+                                  }}
+                                  className="text-green-600 hover:text-green-800 transition-colors"
+                                  title="Chat with this version"
+                                >
+                                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
+                                  </svg>
+                                </button>
+                              )}
                             </div>
                           </td>
                         </tr>
@@ -1574,6 +1595,19 @@ export function DocumentDetail({
           </Button>
         </div>
       </Modal>
+
+      {chatVersion && apiFunctions.chatWithVersion && (
+        <DocumentChatModal
+          isOpen={showVersionChatModal}
+          onClose={() => {
+            setShowVersionChatModal(false);
+            setChatVersion(null);
+          }}
+          documentName={document?.name ?? ''}
+          versionNumber={chatVersion.version_number}
+          onSend={(msg) => apiFunctions.chatWithVersion!(documentId, chatVersion.id, msg)}
+        />
+      )}
 
       <Modal
         isOpen={showVersionSummaryModal}

@@ -22,6 +22,7 @@ export default function DocumentsPage() {
           delete: 'documents.delete',
           share: 'documents.share',
           archive: 'documents.archive',
+          chat: 'documents.chat',
         }}
         apiFunctions={{
           getDocuments: (filters) => api.getDocuments(filters),
@@ -29,6 +30,9 @@ export default function DocumentsPage() {
           archiveDocument: (id) => api.archiveDocument(id),
           updateDocument: (id, data) => api.updateDocument(id, data),
           generateShareLink: (id, data) => api.generateShareLink(id, data),
+          getVersions: (id) => api.getDocumentVersions(id),
+          chatWithVersion: (docId, versionId, msg) =>
+            api.chatWithDocumentVersion(docId, versionId, msg),
         }}
       />
     </div>

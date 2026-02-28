@@ -29,6 +29,8 @@ PERMISSIONS: dict[str, str] = {
     "documents.download_my": "Download My Own Document",
     "documents.download_version": "Download Document Version",
     "documents.download_version_my": "Download My Document Version",
+    "documents.chat": "Chat Document",
+    "documents.chat_my": "Chat My Document",
     "documents.history": "View Document History",
     "documents.history_my": "View My Document History",
     "documents.list": "List Documents",

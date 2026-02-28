@@ -14,10 +14,12 @@ interface DocumentTableProps {
   onDelete: (document: Document) => void;
   onArchive: (document: Document) => void;
   onShare: (document: Document) => void;
+  onChat?: (document: Document) => void;
   editPermission?: string;
   deletePermission?: string;
   sharePermission?: string;
   archivePermission?: string;
+  chatPermission?: string;
   basePath?: string;
 }
 
@@ -27,10 +29,12 @@ export function DocumentTable({
   onDelete,
   onArchive,
   onShare,
+  onChat,
   editPermission = 'documents.update',
   deletePermission = 'documents.delete',
   sharePermission = 'documents.share',
   archivePermission = 'documents.archive',
+  chatPermission,
   basePath = '/documents',
 }: DocumentTableProps) {
   const router = useRouter();
@@ -147,6 +151,32 @@ export function DocumentTable({
       header: 'Actions',
       render: (document: Document) => (
         <div className="flex items-center gap-2">
+          {onChat && chatPermission && (
+            <CanAccess permission={chatPermission}>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onChat(document);
+                }}
+                className="p-1.5 text-gray-400 hover:text-green-600 hover:bg-green-50 rounded transition-colors"
+                title="Chat with document"
+              >
+                <svg
+                  className="w-4 h-4"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z"
+                  />
+                </svg>
+              </button>
+            </CanAccess>
+          )}
           {isDocumentOwner(document) && (
             <CanAccess permission={editPermission}>
               <button
