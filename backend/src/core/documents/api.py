@@ -359,54 +359,22 @@ async def download_document_version(
 
 
 @router.get(
-    "/documents/{document_id}/versions/{version_id}/preview/me",
-    dependencies=[Depends(require_permission("documents.preview_version_my"))],
-    description="Required permission: documents.preview_version_my",
+    "/documents/{document_id}/versions/{version_id}/preview",
+    description="Required permission: documents.preview_version | documents.preview_version_my",
 )
 @inject
-async def preview_my_document_version(
+async def preview_document_version(
     document_id: UUID4,
     version_id: UUID4,
     current_user: CurrentUser,
     document_service: DocumentService = Depends(Provide["document_service"]),
 ) -> FileResponse:
     file_path_response = await document_service.get_version_file_path(
-        document_id, version_id, current_user=current_user
-    )
-
-    if isinstance(file_path_response, Error):
-        raise HTTPException(
-            status_code=file_path_response.code, detail=file_path_response.detail
-        )
-
-    file_path = Path(file_path_response)
-    if not file_path.exists():
-        raise HTTPException(status_code=404, detail="Document file not found on disk")
-
-    # Determine media type based on file extension
-    media_type = _get_media_type(file_path.suffix.lower())
-
-    return FileResponse(
-        path=str(file_path),
-        media_type=media_type,
-        filename=file_path.name,
-        headers={"Content-Disposition": "inline"},
-    )
-
-
-@router.get(
-    "/documents/{document_id}/versions/{version_id}/preview",
-    dependencies=[Depends(require_permission("documents.preview_version"))],
-    description="Required permission: documents.preview_version",
-)
-@inject
-async def preview_document_version(
-    document_id: UUID4,
-    version_id: UUID4,
-    document_service: DocumentService = Depends(Provide["document_service"]),
-) -> FileResponse:
-    file_path_response = await document_service.get_version_file_path(
-        document_id, version_id
+        document_id,
+        version_id,
+        current_user=current_user,
+        full_permission="documents.preview_version",
+        my_permission="documents.preview_version_my",
     )
 
     if isinstance(file_path_response, Error):

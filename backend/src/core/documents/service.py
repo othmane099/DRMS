@@ -238,6 +238,8 @@ class DocumentService(Protocol):
         document_id: UUID4,
         version_id: UUID4,
         current_user: User | None = None,
+        full_permission: str = "documents.download_version",
+        my_permission: str = "documents.download_version_my",
     ) -> str | Error: ...
 
     async def archive_document(
@@ -968,6 +970,8 @@ class DocumentServiceImpl(DocumentService):
         document_id: UUID4,
         version_id: UUID4,
         current_user: User | None = None,
+        full_permission: str = "documents.download_version",
+        my_permission: str = "documents.download_version_my",
     ) -> str | Error:
         logger.info(
             "Fetching version file path (document_id=%s, version_id=%s)",
@@ -979,12 +983,12 @@ class DocumentServiceImpl(DocumentService):
         if current_user is not None:
             result = await _permission_checker(
                 current_user,
-                "documents.download_version",
-                "documents.download_version_my",
+                full_permission,
+                my_permission,
             )
             if isinstance(result, Error):
                 return result
-            can_access_all = result is None or "documents.download_version" in result
+            can_access_all = result is None or full_permission in result
             user_id = None if can_access_all else current_user.id
 
         async with self._unit_of_work as uow:
