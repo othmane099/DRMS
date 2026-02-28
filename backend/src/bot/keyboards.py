@@ -10,7 +10,7 @@ def h(text: str) -> str:
     return html.escape(str(text))
 
 
-# ── Documents ──────────────────────────────────────────────────────────────
+# ── All Documents ───────────────────────────────────────────────────────────
 
 
 def doc_list_keyboard(docs, page: int, total_pages: int) -> InlineKeyboardMarkup:
@@ -33,6 +33,33 @@ def doc_detail_keyboard(doc_id: str, from_page: str) -> InlineKeyboardMarkup:
         [
             [InlineKeyboardButton("⬇️ Download", callback_data=f"dw:{doc_id}")],
             [InlineKeyboardButton("◀ Back to list", callback_data=f"d:{from_page}")],
+        ]
+    )
+
+
+# ── My Documents ────────────────────────────────────────────────────────────
+
+
+def mydoc_list_keyboard(docs, page: int, total_pages: int) -> InlineKeyboardMarkup:
+    rows = [
+        [InlineKeyboardButton(doc.name, callback_data=f"mdd:{doc.id}:{page}")]
+        for doc in docs
+    ]
+    nav = []
+    if page > 1:
+        nav.append(InlineKeyboardButton("◀ Prev", callback_data=f"md:{page - 1}"))
+    if page < total_pages:
+        nav.append(InlineKeyboardButton("Next ▶", callback_data=f"md:{page + 1}"))
+    if nav:
+        rows.append(nav)
+    return InlineKeyboardMarkup(rows)
+
+
+def mydoc_detail_keyboard(doc_id: str, from_page: str) -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(
+        [
+            [InlineKeyboardButton("⬇️ Download", callback_data=f"mdw:{doc_id}")],
+            [InlineKeyboardButton("◀ Back to list", callback_data=f"md:{from_page}")],
         ]
     )
 

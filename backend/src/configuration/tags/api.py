@@ -22,13 +22,7 @@ logger = logging.getLogger(__name__)
 @router.get(
     "/tags",
     response_model=PaginatedTagResponse,
-    dependencies=[
-        Depends(
-            require_any_permission(
-                "tags.list", "documents.create"
-            )
-        )
-    ],
+    dependencies=[Depends(require_any_permission("tags.list", "documents.create"))],
     description="Required permission: tags.list | documents.create",
 )
 @inject

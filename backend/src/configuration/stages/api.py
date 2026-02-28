@@ -22,13 +22,7 @@ logger = logging.getLogger(__name__)
 @router.get(
     "/stages",
     response_model=PaginatedStageResponse,
-    dependencies=[
-        Depends(
-            require_any_permission(
-                "stages.list", "documents.create"
-            )
-        )
-    ],
+    dependencies=[Depends(require_any_permission("stages.list", "documents.create"))],
     description="Required permission: stages.list | documents.create",
 )
 @inject

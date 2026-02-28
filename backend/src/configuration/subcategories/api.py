@@ -23,11 +23,7 @@ logger = logging.getLogger(__name__)
     "/subcategories",
     response_model=PaginatedSubcategoryResponse,
     dependencies=[
-        Depends(
-            require_any_permission(
-                "subcategories.list", "documents.create"
-            )
-        )
+        Depends(require_any_permission("subcategories.list", "documents.create"))
     ],
     description="Required permission: subcategories.list | documents.create",
 )
