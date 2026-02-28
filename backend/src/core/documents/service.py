@@ -214,7 +214,11 @@ class DocumentService(Protocol):
     ) -> Document | Error: ...
 
     async def get_document_file_path(
-        self, document_id: UUID4, user_id: UUID4 | None = None
+        self,
+        document_id: UUID4,
+        current_user: User | None = None,
+        full_permission: str = "documents.download",
+        my_permission: str = "documents.download_my",
     ) -> str | Error: ...
 
     async def get_version_history(
@@ -529,7 +533,9 @@ class DocumentServiceImpl(DocumentService):
         document_update: DocumentUpdate,
         current_user: User,
     ) -> Document | Error:
-        result = await _permission_checker(current_user, "documents.update", "documents.update_my")
+        result = await _permission_checker(
+            current_user, "documents.update", "documents.update_my"
+        )
         if isinstance(result, Error):
             return result
 
@@ -665,7 +671,9 @@ class DocumentServiceImpl(DocumentService):
     async def delete_document(
         self, document_id: UUID4, current_user: User
     ) -> Message | Error:
-        result = await _permission_checker(current_user, "documents.delete", "documents.delete_my")
+        result = await _permission_checker(
+            current_user, "documents.delete", "documents.delete_my"
+        )
         if isinstance(result, Error):
             return result
 
@@ -744,7 +752,9 @@ class DocumentServiceImpl(DocumentService):
     async def get_document_by_id(
         self, document_id: UUID4, current_user: User
     ) -> Document | Error:
-        result = await _permission_checker(current_user, "documents.view", "documents.view_my")
+        result = await _permission_checker(
+            current_user, "documents.view", "documents.view_my"
+        )
         if isinstance(result, Error):
             return result
 
@@ -767,9 +777,23 @@ class DocumentServiceImpl(DocumentService):
         return document
 
     async def get_document_file_path(
-        self, document_id: UUID4, user_id: UUID4 | None = None
+        self,
+        document_id: UUID4,
+        current_user: User | None = None,
+        full_permission: str = "documents.download",
+        my_permission: str = "documents.download_my",
     ) -> str | Error:
         logger.info("Fetching document file path (id=%s)", document_id)
+
+        user_id: UUID4 | None = None
+        if current_user is not None:
+            result = await _permission_checker(
+                current_user, full_permission, my_permission
+            )
+            if isinstance(result, Error):
+                return result
+            can_access_all = result is None or full_permission in result
+            user_id = None if can_access_all else current_user.id
 
         async with self._unit_of_work as uow:
             document = await uow.document_repository.get_document_by_id(
@@ -961,7 +985,9 @@ class DocumentServiceImpl(DocumentService):
     async def archive_document(
         self, document_id: UUID4, current_user: User
     ) -> Document | Error:
-        result = await _permission_checker(current_user, "documents.archive", "documents.archive_my")
+        result = await _permission_checker(
+            current_user, "documents.archive", "documents.archive_my"
+        )
         if isinstance(result, Error):
             return result
 

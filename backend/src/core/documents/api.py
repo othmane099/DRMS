@@ -215,46 +215,18 @@ async def archive_document(
 
 
 @router.get(
-    "/documents/{document_id}/download/me",
-    dependencies=[Depends(require_permission("documents.download_my"))],
-    description="Required permission: documents.download_my",
-)
-@inject
-async def download_my_document(
-    current_user: CurrentUser,
-    document_id: UUID4,
-    document_service: DocumentService = Depends(Provide["document_service"]),
-) -> FileResponse:
-    file_path_response = await document_service.get_document_file_path(
-        document_id, user_id=current_user.id
-    )
-
-    if isinstance(file_path_response, Error):
-        raise HTTPException(
-            status_code=file_path_response.code, detail=file_path_response.detail
-        )
-
-    file_path = Path(file_path_response)
-    if not file_path.exists():
-        raise HTTPException(status_code=404, detail="Document file not found on disk")
-    return FileResponse(
-        path=str(file_path),
-        media_type="application/octet-stream",
-        filename=file_path.name,
-    )
-
-
-@router.get(
     "/documents/{document_id}/download",
-    dependencies=[Depends(require_permission("documents.download"))],
-    description="Required permission: documents.download",
+    description="Required permission: documents.download | documents.download_my",
 )
 @inject
 async def download_document(
     document_id: UUID4,
+    current_user: CurrentUser,
     document_service: DocumentService = Depends(Provide["document_service"]),
 ) -> FileResponse:
-    file_path_response = await document_service.get_document_file_path(document_id)
+    file_path_response = await document_service.get_document_file_path(
+        document_id, current_user=current_user
+    )
 
     if isinstance(file_path_response, Error):
         raise HTTPException(
@@ -268,55 +240,25 @@ async def download_document(
         path=str(file_path),
         media_type="application/octet-stream",
         filename=file_path.name,
-    )
-
-
-@router.get(
-    "/documents/{document_id}/preview/me",
-    dependencies=[Depends(require_permission("documents.preview_my"))],
-    description="Required permission: documents.preview_my",
-)
-@inject
-async def preview_my_document(
-    document_id: UUID4,
-    current_user: CurrentUser,
-    document_service: DocumentService = Depends(Provide["document_service"]),
-) -> FileResponse:
-    file_path_response = await document_service.get_document_file_path(
-        document_id, user_id=current_user.id
-    )
-
-    if isinstance(file_path_response, Error):
-        raise HTTPException(
-            status_code=file_path_response.code, detail=file_path_response.detail
-        )
-
-    file_path = Path(file_path_response)
-    if not file_path.exists():
-        raise HTTPException(status_code=404, detail="Document file not found on disk")
-
-    # Determine media type based on file extension
-    media_type = _get_media_type(file_path.suffix.lower())
-
-    return FileResponse(
-        path=str(file_path),
-        media_type=media_type,
-        filename=file_path.name,
-        headers={"Content-Disposition": "inline"},
     )
 
 
 @router.get(
     "/documents/{document_id}/preview",
-    dependencies=[Depends(require_permission("documents.view"))],
-    description="Required permission: documents.view",
+    description="Required permission: documents.preview | documents.preview_my",
 )
 @inject
 async def preview_document(
     document_id: UUID4,
+    current_user: CurrentUser,
     document_service: DocumentService = Depends(Provide["document_service"]),
 ) -> FileResponse:
-    file_path_response = await document_service.get_document_file_path(document_id)
+    file_path_response = await document_service.get_document_file_path(
+        document_id,
+        current_user=current_user,
+        full_permission="documents.preview",
+        my_permission="documents.preview_my",
+    )
 
     if isinstance(file_path_response, Error):
         raise HTTPException(

@@ -128,7 +128,7 @@ async def documents_callback(
     elif data.startswith("dw:"):
         doc_id = data.split(":", 1)[1]
         file_path_result = await document_svc.get_document_file_path(
-            UUID(doc_id), user_id=user.id
+            UUID(doc_id), current_user=user
         )
         if isinstance(file_path_result, Error):
             await context.bot.send_message(
@@ -300,7 +300,7 @@ async def my_documents_callback(
     elif data.startswith("mdw:"):
         doc_id = data.split(":", 1)[1]
         file_path_result = await document_svc.get_document_file_path(
-            UUID(doc_id), user_id=user.id
+            UUID(doc_id), current_user=user
         )
         if isinstance(file_path_result, Error):
             await context.bot.send_message(
