@@ -714,11 +714,13 @@ class FakeDocumentService(DocumentService):
         self,
         document_create: DocumentCreate,
         document_file: UploadFile,
-        current_user_id: UUID,
+        current_user,
         background_tasks=None,
     ) -> Document | Error:
         from auth.models import User
         from configuration.models import Category, Stage, Subcategory, Tag
+
+        current_user_id = current_user.id
 
         # Check if document name already exists
         for doc in self.documents.values():

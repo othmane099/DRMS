@@ -194,7 +194,7 @@ class DocumentService(Protocol):
         self,
         document_create: DocumentCreate,
         document_file: UploadFile,
-        current_user_id: UUID,
+        current_user: User,
         background_tasks: BackgroundTasks | None = None,
     ) -> Document | Error: ...
 
@@ -378,9 +378,14 @@ class DocumentServiceImpl(DocumentService):
         self,
         document_create: DocumentCreate,
         document_file: UploadFile,
-        current_user_id: UUID,
+        current_user: User,
         background_tasks: BackgroundTasks | None = None,
     ) -> Document | Error:
+        result = await _permission_checker(current_user, "documents.create")
+        if isinstance(result, Error):
+            return result
+
+        current_user_id = current_user.id
         logger.info("Creating document (name=%s)", document_create.name)
 
         file_validation_error = await self._validate_file(document_file)
