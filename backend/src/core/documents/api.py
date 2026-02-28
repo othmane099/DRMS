@@ -148,33 +148,9 @@ async def get_document(
 
 
 @router.delete(
-    "/documents/{document_id}/me",
-    response_model=Message,
-    dependencies=[Depends(require_permission("documents.delete_my"))],
-    description="Required permission: documents.delete_my",
-)
-@inject
-async def delete_my_document(
-    document_id: UUID4,
-    current_user: CurrentUser,
-    document_service: DocumentService = Depends(Provide["document_service"]),
-) -> Message:
-    response = await document_service.delete_document(
-        document_id=document_id,
-        current_user_id=current_user.id,
-        user_id=current_user.id,
-    )
-
-    if isinstance(response, Error):
-        raise HTTPException(status_code=response.code, detail=response.detail)
-    return response
-
-
-@router.delete(
     "/documents/{document_id}",
     response_model=Message,
-    dependencies=[Depends(require_permission("documents.delete"))],
-    description="Required permission: documents.delete",
+    description="Required permission: documents.delete | documents.delete_my",
 )
 @inject
 async def delete_document(
@@ -184,7 +160,7 @@ async def delete_document(
 ) -> Message:
     response = await document_service.delete_document(
         document_id=document_id,
-        current_user_id=current_user.id,
+        current_user=current_user,
     )
 
     if isinstance(response, Error):

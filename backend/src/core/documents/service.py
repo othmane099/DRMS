@@ -207,7 +207,7 @@ class DocumentService(Protocol):
     ) -> Document | Error: ...
 
     async def delete_document(
-        self, document_id: UUID4, current_user_id: UUID4, user_id: UUID4 | None = None
+        self, document_id: UUID4, current_user: User
     ) -> Message | Error: ...
 
     async def get_document_by_id(
@@ -657,8 +657,16 @@ class DocumentServiceImpl(DocumentService):
         return updated_document
 
     async def delete_document(
-        self, document_id: UUID4, current_user_id: UUID4, user_id: UUID4 | None = None
+        self, document_id: UUID4, current_user: User
     ) -> Message | Error:
+        result = await _permission_checker(current_user, "documents.delete", "documents.delete_my")
+        if isinstance(result, Error):
+            return result
+
+        can_delete_all = result is None or "documents.delete" in result
+        user_id = None if can_delete_all else current_user.id
+        current_user_id = current_user.id
+
         logger.info("Deleting document (id=%s)", document_id)
 
         async with self._unit_of_work as uow:
