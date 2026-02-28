@@ -115,7 +115,7 @@ async def documents_callback(
 
     if data.startswith("dd:"):
         _, doc_id, from_page = data.split(":", 2)
-        doc = await document_svc.get_document_by_id(UUID(doc_id), user_id=user.id)
+        doc = await document_svc.get_document_by_id(UUID(doc_id), current_user=user)
         if isinstance(doc, Error):
             await query.edit_message_text(f"Could not load document: {doc.detail}")
             return
@@ -287,7 +287,7 @@ async def my_documents_callback(
 
     if data.startswith("mdd:"):
         _, doc_id, from_page = data.split(":", 2)
-        doc = await document_svc.get_document_by_id(UUID(doc_id), user_id=user.id)
+        doc = await document_svc.get_document_by_id(UUID(doc_id), current_user=user)
         if isinstance(doc, Error):
             await query.edit_message_text(f"Could not load document: {doc.detail}")
             return

@@ -879,13 +879,10 @@ class FakeDocumentService(DocumentService):
         return Message(detail="Document deleted successfully")
 
     async def get_document_by_id(
-        self, document_id: UUID4, user_id: UUID4 | None = None
+        self, document_id: UUID4, current_user
     ) -> Document | Error:
         document = self.documents.get(document_id)
-        if not document or (
-            user_id
-            and (document.created_by != user_id or document.assigned_to != user_id)
-        ):
+        if not document:
             return Error(detail="Document not found", code=status.HTTP_404_NOT_FOUND)
         return document
 

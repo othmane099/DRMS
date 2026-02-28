@@ -127,39 +127,19 @@ async def create_document(
 
 
 @router.get(
-    "/documents/{document_id}/me",
+    "/documents/{document_id}",
     response_model=DocumentResponse,
-    dependencies=[Depends(require_permission("documents.view_my"))],
-    description="Required permission: documents.view_my",
+    description="Required permission: documents.view | documents.view_my",
 )
 @inject
-async def get_my_document(
+async def get_document(
     current_user: CurrentUser,
     document_id: UUID4,
     document_service: DocumentService = Depends(Provide["document_service"]),
 ) -> DocumentResponse:
     response = await document_service.get_document_by_id(
-        document_id=document_id, user_id=current_user.id
+        document_id=document_id, current_user=current_user
     )
-
-    if isinstance(response, Error):
-        raise HTTPException(status_code=response.code, detail=response.detail)
-
-    return DocumentResponse.model_validate(response)
-
-
-@router.get(
-    "/documents/{document_id}",
-    response_model=DocumentResponse,
-    dependencies=[Depends(require_permission("documents.view"))],
-    description="Required permission: documents.view",
-)
-@inject
-async def get_document(
-    document_id: UUID4,
-    document_service: DocumentService = Depends(Provide["document_service"]),
-) -> DocumentResponse:
-    response = await document_service.get_document_by_id(document_id=document_id)
 
     if isinstance(response, Error):
         raise HTTPException(status_code=response.code, detail=response.detail)
