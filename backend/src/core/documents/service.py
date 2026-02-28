@@ -222,7 +222,7 @@ class DocumentService(Protocol):
     ) -> str | Error: ...
 
     async def get_version_history(
-        self, document_id: UUID4, user_id: UUID4 | None = None
+        self, document_id: UUID4, current_user: User
     ) -> list[VersionHistory] | Error: ...
 
     async def create_new_version(
@@ -824,9 +824,17 @@ class DocumentServiceImpl(DocumentService):
         return current_version.document_file
 
     async def get_version_history(
-        self, document_id: UUID4, user_id: UUID4 | None = None
+        self, document_id: UUID4, current_user: User
     ) -> list[VersionHistory] | Error:
         logger.info("Fetching version history (document_id=%s)", document_id)
+
+        result = await _permission_checker(
+            current_user, "documents.view_version", "documents.view_version_my"
+        )
+        if isinstance(result, Error):
+            return result
+        can_view_all = result is None or "documents.view_version" in result
+        user_id = None if can_view_all else current_user.id
 
         async with self._unit_of_work as uow:
             document = await uow.document_repository.get_document_by_id(
