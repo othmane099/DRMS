@@ -82,6 +82,20 @@ def document_service():
     )
 
 
+@pytest.fixture
+def superuser():
+    """Provide a superuser that bypasses permission checks."""
+    from auth.models import User
+
+    return User(
+        id=uuid4(),
+        username="superuser_integration",
+        password="hashed",
+        is_active=True,
+        is_superuser=True,
+    )
+
+
 @pytest.mark.asyncio
 async def test_create_document_commits_to_database(document_service, test_data):
     """Test that creating a document commits data to database."""
@@ -203,7 +217,9 @@ async def test_create_document_creates_document_history(document_service, test_d
 
 
 @pytest.mark.asyncio
-async def test_get_documents_paginated_from_database(document_service, test_data):
+async def test_get_documents_paginated_from_database(
+    document_service, test_data, superuser
+):
     """Test that getting documents retrieves from database."""
     # Create multiple documents
     for i in range(5):
@@ -221,7 +237,8 @@ async def test_get_documents_paginated_from_database(document_service, test_data
 
     # Get documents with pagination
     result = await document_service.get_all_documents_paginated(
-        filters=DocumentFilterParams(**{"page": 1, "page_size": 3})
+        filters=DocumentFilterParams(**{"page": 1, "page_size": 3}),
+        current_user=superuser,
     )
 
     assert not isinstance(result, Error)
@@ -232,7 +249,7 @@ async def test_get_documents_paginated_from_database(document_service, test_data
 
 @pytest.mark.asyncio
 async def test_get_documents_with_category_filter_from_database(
-    document_service, test_data
+    document_service, test_data, superuser
 ):
     """Test that filtering documents by category works with database."""
     # Create document with test category
@@ -253,7 +270,8 @@ async def test_get_documents_with_category_filter_from_database(
     result = await document_service.get_all_documents_paginated(
         filters=DocumentFilterParams(
             **{"page": 1, "page_size": 10, "category_id": test_data["category_id"]}
-        )
+        ),
+        current_user=superuser,
     )
 
     assert not isinstance(result, Error)
@@ -1042,7 +1060,9 @@ async def test_archive_document_not_found(document_service, test_data):
 
 
 @pytest.mark.asyncio
-async def test_get_documents_excludes_archived_by_default(document_service, test_data):
+async def test_get_documents_excludes_archived_by_default(
+    document_service, test_data, superuser
+):
     """Test that get_documents excludes archived documents by default."""
     # Create non-archived documents
     for i in range(3):
@@ -1078,12 +1098,8 @@ async def test_get_documents_excludes_archived_by_default(document_service, test
 
     # Get documents without specifying archive parameter (should default to False)
     result = await document_service.get_all_documents_paginated(
-        filters=DocumentFilterParams(
-            **{
-                "page": 1,
-                "page_size": 10,
-            }
-        ),
+        filters=DocumentFilterParams(**{"page": 1, "page_size": 10}),
+        current_user=superuser,
     )
 
     assert not isinstance(result, Error)
@@ -1103,7 +1119,7 @@ async def test_get_documents_excludes_archived_by_default(document_service, test
 
 
 @pytest.mark.asyncio
-async def test_get_documents_with_archive_true(document_service, test_data):
+async def test_get_documents_with_archive_true(document_service, test_data, superuser):
     """Test that get_documents returns only archived documents when archive=True."""
     # Create non-archived documents
     for i in range(2):
@@ -1139,7 +1155,8 @@ async def test_get_documents_with_archive_true(document_service, test_data):
 
     # Get only archived documents
     result = await document_service.get_all_documents_paginated(
-        filters=DocumentFilterParams(**{"page": 1, "page_size": 10, "archive": True})
+        filters=DocumentFilterParams(**{"page": 1, "page_size": 10, "archive": True}),
+        current_user=superuser,
     )
 
     assert not isinstance(result, Error)
@@ -1159,7 +1176,9 @@ async def test_get_documents_with_archive_true(document_service, test_data):
 
 
 @pytest.mark.asyncio
-async def test_get_documents_archive_filter_with_category(document_service, test_data):
+async def test_get_documents_archive_filter_with_category(
+    document_service, test_data, superuser
+):
     """Test that archive filter works with other filters like category."""
     # Create a second category
     from configuration.models import Category, Subcategory
@@ -1231,7 +1250,8 @@ async def test_get_documents_archive_filter_with_category(document_service, test
                 "archive": True,
                 "category_id": test_data["category_id"],
             }
-        )
+        ),
+        current_user=superuser,
     )
 
     assert not isinstance(result, Error)

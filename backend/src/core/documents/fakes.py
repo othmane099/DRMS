@@ -654,8 +654,10 @@ class FakeDocumentService(DocumentService):
     async def get_all_documents_paginated(
         self,
         filters: DocumentFilterParams,
-        user_id: UUID4 | None = None,
+        current_user: Any,
     ) -> PaginatedDocumentResponse | Error:
+        user_id = UUID4(str(current_user.id)) if filters.only_my else None
+
         docs = list(self.documents.values())
 
         # Apply filters

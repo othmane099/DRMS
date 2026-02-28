@@ -66,15 +66,17 @@ def _get_media_type(file_extension: str) -> str:
 @router.get(
     "/documents",
     response_model=PaginatedDocumentResponse,
-    dependencies=[Depends(require_permission("documents.list"))],
-    description="Required permission: documents.list",
+    description="Required permission: documents.list | documents.list_my",
 )
 @inject
 async def get_documents(
+    current_user: CurrentUser,
     filters: Annotated[DocumentFilterParams, Depends()],
     document_service: DocumentService = Depends(Provide["document_service"]),
 ) -> PaginatedDocumentResponse:
-    response = await document_service.get_all_documents_paginated(filters=filters)
+    response = await document_service.get_all_documents_paginated(
+        filters=filters, current_user=current_user
+    )
     if isinstance(response, Error):
         raise HTTPException(status_code=response.code, detail=response.detail)
     return response
@@ -125,26 +127,6 @@ async def create_document(
         raise HTTPException(status_code=response.code, detail=response.detail)
 
     return DocumentResponse.model_validate(response)
-
-
-@router.get(
-    "/documents/me",
-    response_model=PaginatedDocumentResponse,
-    dependencies=[Depends(require_permission("documents.list_my"))],
-    description="Required permission: documents.list_my",
-)
-@inject
-async def get_my_documents(
-    current_user: CurrentUser,
-    filters: Annotated[DocumentFilterParams, Depends()],
-    document_service: DocumentService = Depends(Provide["document_service"]),
-) -> PaginatedDocumentResponse:
-    response = await document_service.get_all_documents_paginated(
-        filters=filters, user_id=current_user.id
-    )
-    if isinstance(response, Error):
-        raise HTTPException(status_code=response.code, detail=response.detail)
-    return response
 
 
 @router.get(

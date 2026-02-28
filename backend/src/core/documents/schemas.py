@@ -81,6 +81,9 @@ class DocumentFilterParams(BaseModel):
     search: str | None = Field(
         None, description="Search in document name and description"
     )
+    only_my: bool = Field(
+        False, description="List only documents owned by the current user"
+    )
 
 
 class PaginatedDocumentResponse(BaseModel):
