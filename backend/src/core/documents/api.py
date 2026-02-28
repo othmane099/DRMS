@@ -1,5 +1,4 @@
 import logging
-from datetime import date
 from pathlib import Path
 
 from dependency_injector.wiring import Provide, inject
@@ -10,7 +9,6 @@ from fastapi import (
     File,
     Form,
     HTTPException,
-    Query,
     UploadFile,
 )
 from fastapi.responses import FileResponse
@@ -23,6 +21,7 @@ from core.documents.schemas import (
     DocumentCommentCreate,
     DocumentCommentResponse,
     DocumentCreate,
+    DocumentFilterParams,
     DocumentResponse,
     DocumentSearchRequest,
     DocumentSearchResponse,
@@ -71,27 +70,17 @@ def _get_media_type(file_extension: str) -> str:
 )
 @inject
 async def get_documents(
-    page: int = Query(1, ge=1, description="Page number"),
-    page_size: int = Query(20, ge=1, description="Number of items per page"),
-    category_id: UUID4 | None = Query(None, description="Filter by category ID"),
-    stage_id: UUID4 | None = Query(None, description="Filter by stage ID"),
-    created_date: date | None = Query(None, description="Filter by creation date"),
-    archive: bool = Query(
-        False, description="Filter by archive status (default: False)"
-    ),
-    search: str | None = Query(
-        None, description="Search in document name and description"
-    ),
+    filters: DocumentFilterParams,
     document_service: DocumentService = Depends(Provide["document_service"]),
 ) -> PaginatedDocumentResponse:
     response = await document_service.get_all_documents_paginated(
-        page=page,
-        page_size=page_size,
-        category_id=category_id,
-        stage_id=stage_id,
-        created_date=created_date,
-        archive=archive,
-        search=search,
+        page=filters.page,
+        page_size=filters.page_size,
+        category_id=filters.category_id,
+        stage_id=filters.stage_id,
+        created_date=filters.created_date,
+        archive=filters.archive,
+        search=filters.search,
     )
     if isinstance(response, Error):
         raise HTTPException(status_code=response.code, detail=response.detail)
@@ -154,28 +143,18 @@ async def create_document(
 @inject
 async def get_my_documents(
     current_user: CurrentUser,
-    page: int = Query(1, ge=1, description="Page number"),
-    page_size: int = Query(20, ge=1, description="Number of items per page"),
-    category_id: UUID4 | None = Query(None, description="Filter by category ID"),
-    stage_id: UUID4 | None = Query(None, description="Filter by stage ID"),
-    created_date: date | None = Query(None, description="Filter by creation date"),
-    archive: bool = Query(
-        False, description="Filter by archive status (default: False)"
-    ),
-    search: str | None = Query(
-        None, description="Search in document name and description"
-    ),
+    filters: DocumentFilterParams,
     document_service: DocumentService = Depends(Provide["document_service"]),
 ) -> PaginatedDocumentResponse:
     response = await document_service.get_all_documents_paginated(
-        page=page,
-        page_size=page_size,
-        category_id=category_id,
-        stage_id=stage_id,
-        created_date=created_date,
-        archive=archive,
+        page=filters.page,
+        page_size=filters.page_size,
+        category_id=filters.category_id,
+        stage_id=filters.stage_id,
+        created_date=filters.created_date,
+        archive=filters.archive,
         user_id=current_user.id,
-        search=search,
+        search=filters.search,
     )
     if isinstance(response, Error):
         raise HTTPException(status_code=response.code, detail=response.detail)
