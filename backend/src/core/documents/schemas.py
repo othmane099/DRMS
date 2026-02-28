@@ -69,6 +69,16 @@ class VersionHistoryResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
+class DocumentFilterParams(BaseModel):
+    page: int = Field(1, ge=1, description="Page number")
+    page_size: int = Field(20, ge=1, description="Number of items per page")
+    category_id: UUID4 | None = Field(None, description="Filter by category ID")
+    stage_id: UUID4 | None = Field(None, description="Filter by stage ID")
+    created_date: date | None = Field(None, description="Filter by creation date")
+    archive: bool = Field(False, description="Filter by archive status (default: False)")
+    search: str | None = Field(None, description="Search in document name and description")
+
+
 class PaginatedDocumentResponse(BaseModel):
     data: list[DocumentResponse]
     current_page: int
