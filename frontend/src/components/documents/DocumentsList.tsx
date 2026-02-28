@@ -25,6 +25,7 @@ interface DocumentsListProps {
   basePath: string;
   permissions: {
     list: string;
+    listMy?: string;
     create: string;
     edit: string;
     delete: string;
@@ -44,7 +45,7 @@ interface DocumentsListProps {
 }
 
 export function DocumentsList({ title, description, basePath, permissions, apiFunctions }: DocumentsListProps) {
-  const { hasPermission } = usePermissions();
+  const { hasPermission, hasAnyPermission, isSuperuser } = usePermissions();
   const [documents, setDocuments] = useState<PaginatedResponse<Document> | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [accessDenied, setAccessDenied] = useState(false);
@@ -86,11 +87,15 @@ export function DocumentsList({ title, description, basePath, permissions, apiFu
   const [stageId, setStageId] = useState('');
   const [createdDate, setCreatedDate] = useState('');
   const [archive, setArchive] = useState('');
+  const [onlyMy, setOnlyMy] = useState(false);
   const [page, setPage] = useState(1);
   const pageSize = 20;
 
-  // Check if user has permission to view documents
-  const canViewDocuments = hasPermission(permissions.list);
+  // Permission checks
+  const listPermissions = [permissions.list, ...(permissions.listMy ? [permissions.listMy] : [])];
+  const canViewDocuments = hasAnyPermission(listPermissions);
+  // Show "my documents only" toggle when user can list all docs (has full list perm or is superuser)
+  const canViewAll = hasPermission(permissions.list) || isSuperuser();
 
   // Fetch dropdown data on mount
   useEffect(() => {
@@ -130,9 +135,9 @@ export function DocumentsList({ title, description, basePath, permissions, apiFu
       if (stageId) filters.stage_id = stageId;
       if (createdDate) filters.created_date = createdDate;
       if (archive !== '') filters.archive = archive === 'true';
+      if (onlyMy) filters.only_my = true;
 
       const data = await apiFunctions.getDocuments(filters);
-      console.log('Documents API response:', data);
       setDocuments(data);
     } catch (error) {
       const apiError = error as ApiError;
@@ -145,7 +150,7 @@ export function DocumentsList({ title, description, basePath, permissions, apiFu
     } finally {
       setIsLoading(false);
     }
-  }, [page, search, categoryId, stageId, createdDate, archive, canViewDocuments]);
+  }, [page, search, categoryId, stageId, createdDate, archive, onlyMy, canViewDocuments]);
 
   useEffect(() => {
     fetchDocuments();
@@ -183,6 +188,11 @@ export function DocumentsList({ title, description, basePath, permissions, apiFu
 
   const handleArchiveChange = (value: string) => {
     setArchive(value);
+    setPage(1);
+  };
+
+  const handleOnlyMyChange = (value: boolean) => {
+    setOnlyMy(value);
     setPage(1);
   };
 
@@ -323,6 +333,9 @@ export function DocumentsList({ title, description, basePath, permissions, apiFu
                 onStageChange={handleStageChange}
                 onCreatedDateChange={handleCreatedDateChange}
                 onArchiveChange={handleArchiveChange}
+                showOnlyMyFilter={canViewAll}
+                onlyMy={onlyMy}
+                onOnlyMyChange={handleOnlyMyChange}
               />
             </div>
 
@@ -398,7 +411,7 @@ export function DocumentsList({ title, description, basePath, permissions, apiFu
                 </h3>
                 <p className="text-gray-600">
                   You are about to delete the document <strong className="text-gray-900">{documentToDelete.name}</strong>.
-                  This action  cannot be undone.
+                  This action cannot be undone.
                 </p>
               </div>
             </div>
