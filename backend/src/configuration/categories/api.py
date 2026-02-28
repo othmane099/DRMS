@@ -24,11 +24,7 @@ logger = logging.getLogger(__name__)
     "/categories",
     response_model=PaginatedCategoryResponse,
     dependencies=[
-        Depends(
-            require_any_permission(
-                "categories.list", "documents.create"
-            )
-        )
+        Depends(require_any_permission("categories.list", "documents.create"))
     ],
     description="Required permission: categories.list | documents.create",
 )

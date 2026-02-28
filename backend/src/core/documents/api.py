@@ -15,7 +15,7 @@ from fastapi import (
 from fastapi.responses import FileResponse
 from pydantic import UUID4
 
-from auth.dependencies import CurrentUser, require_any_permission, require_permission
+from auth.dependencies import CurrentUser, require_permission
 from core.documents.schemas import (
     DocumentChatRequest,
     DocumentChatResponse,
@@ -85,9 +85,7 @@ async def get_documents(
 @router.post(
     "/documents",
     response_model=DocumentResponse,
-    dependencies=[
-        Depends(require_permission("documents.create"))
-    ],
+    dependencies=[Depends(require_permission("documents.create"))],
     description="Required permission: documents.create",
 )
 @inject
