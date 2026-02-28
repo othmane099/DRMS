@@ -10,7 +10,11 @@ from starlette import status
 
 sys.path.append(f"{os.getcwd()}/src")
 from configuration.models import Category, Stage, Subcategory
-from core.documents.schemas import DocumentCreate, ShareDocumentCreate
+from core.documents.schemas import (
+    DocumentCreate,
+    ShareDocumentCreate,
+    DocumentFilterParams,
+)
 from core.documents.service import DocumentServiceImpl
 from core.models import Document
 from core.reminders.service import ReminderServiceImpl
@@ -260,7 +264,9 @@ async def test_get_all_documents_paginated_success(document_service, uow):
         doc.tags = []
         uow.document_repository.documents[doc_id] = doc
 
-    result = await document_service.get_all_documents_paginated(page=1, page_size=10)
+    result = await document_service.get_all_documents_paginated(
+        filters=DocumentFilterParams(**{"page": 1, "page_size": 10}),
+    )
 
     assert not isinstance(result, Error)
     assert len(result.data) == 10
@@ -329,7 +335,9 @@ async def test_get_all_documents_paginated_with_filters(document_service, uow):
         uow.document_repository.documents[doc_id] = doc
 
     result = await document_service.get_all_documents_paginated(
-        page=1, page_size=10, category_id=uow.test_category_id
+        filters=DocumentFilterParams(
+            **{"page": 1, "page_size": 10, "category_id": uow.test_category_id}
+        )
     )
 
     assert not isinstance(result, Error)
@@ -340,7 +348,9 @@ async def test_get_all_documents_paginated_with_filters(document_service, uow):
 @pytest.mark.asyncio
 async def test_get_all_documents_empty(document_service):
     """Test retrieving documents when none exist."""
-    result = await document_service.get_all_documents_paginated(page=1, page_size=10)
+    result = await document_service.get_all_documents_paginated(
+        filters=DocumentFilterParams(**{"page": 1, "page_size": 10})
+    )
 
     assert not isinstance(result, Error)
     assert len(result.data) == 0
@@ -425,7 +435,13 @@ async def test_get_documents_paginated_with_user_filter_created_by(
 
     # Get documents for user1
     result = await document_service.get_all_documents_paginated(
-        page=1, page_size=10, user_id=user1_id
+        filters=DocumentFilterParams(
+            **{
+                "page": 1,
+                "page_size": 10,
+            }
+        ),
+        user_id=user1_id,
     )
 
     assert not isinstance(result, Error)
@@ -510,7 +526,13 @@ async def test_get_documents_paginated_with_user_filter_assigned_to(
 
     # Get documents for user1
     result = await document_service.get_all_documents_paginated(
-        page=1, page_size=10, user_id=user1_id
+        filters=DocumentFilterParams(
+            **{
+                "page": 1,
+                "page_size": 10,
+            }
+        ),
+        user_id=user1_id,
     )
 
     assert not isinstance(result, Error)
@@ -582,7 +604,13 @@ async def test_get_documents_paginated_with_user_filter_shared_with_user(
 
     # Get documents for user1
     result = await document_service.get_all_documents_paginated(
-        page=1, page_size=10, user_id=user1_id
+        filters=DocumentFilterParams(
+            **{
+                "page": 1,
+                "page_size": 10,
+            }
+        ),
+        user_id=user1_id,
     )
 
     assert not isinstance(result, Error)
@@ -648,7 +676,8 @@ async def test_get_documents_paginated_shared_not_yet_started(document_service, 
 
     # Get documents for user1
     result = await document_service.get_all_documents_paginated(
-        page=1, page_size=10, user_id=user1_id
+        filters=DocumentFilterParams(**{"page": 1, "page_size": 10}),
+        user_id=user1_id,
     )
 
     assert not isinstance(result, Error)
@@ -713,7 +742,7 @@ async def test_get_documents_paginated_shared_expired(document_service, uow):
 
     # Get documents for user1
     result = await document_service.get_all_documents_paginated(
-        page=1, page_size=10, user_id=user1_id
+        filters=DocumentFilterParams(**{"page": 1, "page_size": 10}), user_id=user1_id
     )
 
     assert not isinstance(result, Error)
@@ -777,7 +806,13 @@ async def test_get_documents_paginated_shared_without_date_constraints(
 
     # Get documents for user1
     result = await document_service.get_all_documents_paginated(
-        page=1, page_size=10, user_id=user1_id
+        filters=DocumentFilterParams(
+            **{
+                "page": 1,
+                "page_size": 10,
+            }
+        ),
+        user_id=user1_id,
     )
 
     assert not isinstance(result, Error)
@@ -916,7 +951,8 @@ async def test_get_documents_paginated_user_multiple_access_types(
 
     # Get documents for user1
     result = await document_service.get_all_documents_paginated(
-        page=1, page_size=10, user_id=user1_id
+        filters=DocumentFilterParams(**{"page": 1, "page_size": 10}),
+        user_id=user1_id,
     )
 
     assert not isinstance(result, Error)
@@ -1003,7 +1039,14 @@ async def test_get_documents_paginated_user_filter_with_category_filter(
 
     # Get documents for user1 filtered by category 1
     result = await document_service.get_all_documents_paginated(
-        page=1, page_size=10, category_id=uow.test_category_id, user_id=user1_id
+        filters=DocumentFilterParams(
+            **{
+                "page": 1,
+                "page_size": 10,
+                "category_id": uow.test_category_id,
+            }
+        ),
+        user_id=user1_id,
     )
 
     assert not isinstance(result, Error)
@@ -1523,7 +1566,9 @@ async def test_get_documents_excludes_archived_by_default(document_service, uow)
         await document_service.archive_document(created.id, uow.test_user_id)
 
     # Get documents without specifying archive parameter (should default to False)
-    result = await document_service.get_all_documents_paginated(page=1, page_size=10)
+    result = await document_service.get_all_documents_paginated(
+        filters=DocumentFilterParams(**{"page": 1, "page_size": 10}),
+    )
 
     assert not isinstance(result, Error)
     assert len(result.data) == 3
@@ -1575,7 +1620,13 @@ async def test_get_documents_with_archive_filter_true(document_service, uow):
 
     # Get archived documents
     result = await document_service.get_all_documents_paginated(
-        page=1, page_size=10, archive=True
+        filters=DocumentFilterParams(
+            **{
+                "page": 1,
+                "page_size": 10,
+                "archive": True,
+            }
+        ),
     )
 
     assert not isinstance(result, Error)

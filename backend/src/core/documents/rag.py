@@ -20,7 +20,9 @@ def _collection_name(version_id: str) -> str:
 
 
 def _embeddings() -> OllamaEmbeddings:
-    return OllamaEmbeddings(base_url=settings.OLLAMA_HOST, model=settings.OLLAMA_EMBED_MODEL)
+    return OllamaEmbeddings(
+        base_url=settings.OLLAMA_HOST, model=settings.OLLAMA_EMBED_MODEL
+    )
 
 
 async def build_vectorstore(version_id: str, file_path: str) -> None:

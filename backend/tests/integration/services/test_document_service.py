@@ -10,7 +10,11 @@ from sqlalchemy import select
 sys.path.insert(0, f"{os.getcwd()}/src")
 
 from configuration.models import Category, Stage, Subcategory  # noqa: E402
-from core.documents.schemas import DocumentCreate, ShareDocumentCreate  # noqa: E402
+from core.documents.schemas import (
+    DocumentCreate,
+    DocumentFilterParams,
+    ShareDocumentCreate,
+)  # noqa: E402
 from core.documents.service import DocumentServiceImpl  # noqa: E402
 from core.models import Document, DocumentHistory, VersionHistory  # noqa: E402
 from db import default_session_factory  # noqa: E402
@@ -216,7 +220,9 @@ async def test_get_documents_paginated_from_database(document_service, test_data
         )
 
     # Get documents with pagination
-    result = await document_service.get_all_documents_paginated(page=1, page_size=3)
+    result = await document_service.get_all_documents_paginated(
+        filters=DocumentFilterParams(**{"page": 1, "page_size": 3})
+    )
 
     assert not isinstance(result, Error)
     assert len(result.data) == 3
@@ -245,7 +251,9 @@ async def test_get_documents_with_category_filter_from_database(
 
     # Get documents filtered by category
     result = await document_service.get_all_documents_paginated(
-        page=1, page_size=10, category_id=test_data["category_id"]
+        filters=DocumentFilterParams(
+            **{"page": 1, "page_size": 10, "category_id": test_data["category_id"]}
+        )
     )
 
     assert not isinstance(result, Error)
@@ -1069,7 +1077,14 @@ async def test_get_documents_excludes_archived_by_default(document_service, test
         archived_ids.append(created.id)
 
     # Get documents without specifying archive parameter (should default to False)
-    result = await document_service.get_all_documents_paginated(page=1, page_size=10)
+    result = await document_service.get_all_documents_paginated(
+        filters=DocumentFilterParams(
+            **{
+                "page": 1,
+                "page_size": 10,
+            }
+        ),
+    )
 
     assert not isinstance(result, Error)
     # Verify all returned documents are not archived
@@ -1124,7 +1139,7 @@ async def test_get_documents_with_archive_true(document_service, test_data):
 
     # Get only archived documents
     result = await document_service.get_all_documents_paginated(
-        page=1, page_size=10, archive=True
+        filters=DocumentFilterParams(**{"page": 1, "page_size": 10, "archive": True})
     )
 
     assert not isinstance(result, Error)
@@ -1209,7 +1224,14 @@ async def test_get_documents_archive_filter_with_category(document_service, test
 
     # Get archived documents from first category only
     result = await document_service.get_all_documents_paginated(
-        page=1, page_size=10, category_id=test_data["category_id"], archive=True
+        filters=DocumentFilterParams(
+            **{
+                "page": 1,
+                "page_size": 10,
+                "archive": True,
+                "category_id": test_data["category_id"],
+            }
+        )
     )
 
     assert not isinstance(result, Error)

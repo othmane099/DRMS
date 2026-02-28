@@ -5,8 +5,10 @@ from io import BytesIO
 from uuid import uuid4
 
 import pytest
-from fastapi import HTTPException, UploadFile
+from fastapi import BackgroundTasks, HTTPException, UploadFile
 from starlette import status
+
+from core.documents.schemas import DocumentFilterParams
 
 sys.path.append(f"{os.getcwd()}/src")
 from auth.models import User
@@ -105,13 +107,7 @@ def current_user():
 async def test_get_documents_api_success(document_service):
     """Test GET /documents endpoint."""
     result = await get_documents(
-        page=1,
-        page_size=10,
-        category_id=None,
-        stage_id=None,
-        created_date=None,
-        archive=False,
-        search=None,
+        filters=DocumentFilterParams(**{"page": 1, "page_size": 10, "archive": False}),
         document_service=document_service,
     )
 
@@ -128,13 +124,7 @@ async def test_get_documents_api_pagination(document_service):
     """Test GET /documents endpoint with pagination."""
     # Get page 2
     result = await get_documents(
-        page=2,
-        page_size=10,
-        category_id=None,
-        stage_id=None,
-        created_date=None,
-        archive=False,
-        search=None,
+        filters=DocumentFilterParams(**{"page": 2, "page_size": 10, "archive": False}),
         document_service=document_service,
     )
 
@@ -150,13 +140,9 @@ async def test_get_documents_api_pagination(document_service):
 async def test_get_documents_api_with_category_filter(document_service):
     """Test GET /documents endpoint with category filter."""
     result = await get_documents(
-        page=1,
-        page_size=20,
-        category_id=document_service.test_category_id,
-        stage_id=None,
-        created_date=None,
-        archive=False,
-        search=None,
+        filters=DocumentFilterParams(
+            **{"page": 1, "page_size": 20, "archive": False, "category_id": document_service.test_category_id}
+        ),
         document_service=document_service,
     )
 
@@ -168,13 +154,9 @@ async def test_get_documents_api_with_category_filter(document_service):
 async def test_get_documents_api_with_stage_filter(document_service):
     """Test GET /documents endpoint with stage filter."""
     result = await get_documents(
-        page=1,
-        page_size=20,
-        category_id=None,
-        stage_id=document_service.test_stage_id,
-        created_date=None,
-        archive=False,
-        search=None,
+        filters=DocumentFilterParams(
+            **{"page": 1, "page_size": 20, "archive": False, "category_id": document_service.test_category_id}
+        ),
         document_service=document_service,
     )
 
@@ -186,13 +168,14 @@ async def test_get_documents_api_with_stage_filter(document_service):
 async def test_get_documents_api_empty(document_service):
     """Test GET /documents endpoint with no documents matching filters."""
     result = await get_documents(
-        page=1,
-        page_size=10,
-        category_id=uuid4(),  # Non-existent category
-        stage_id=None,
-        created_date=None,
-        archive=False,
-        search=None,
+        filters=DocumentFilterParams(
+            **{
+                "page": 1,
+                "page_size": 10,
+                "archive": False,
+                "category_id": uuid4(),
+            }
+        ),
         document_service=document_service,
     )
 
@@ -208,6 +191,7 @@ async def test_create_document_api_success(document_service, current_user):
     tags_str = f"{document_service.test_tag1_id},{document_service.test_tag2_id}"
     result = await create_document(
         current_user=current_user,
+        background_tasks=BackgroundTasks(),
         name="New Document",
         category_id=document_service.test_category_id,
         subcategory_id=document_service.test_subcategory_id,
@@ -234,6 +218,7 @@ async def test_create_document_api_duplicate_name(document_service, current_user
     upload_file1 = create_upload_file("test1.pdf")
     await create_document(
         current_user=current_user,
+        background_tasks=BackgroundTasks(),
         name="Duplicate Doc",
         category_id=document_service.test_category_id,
         subcategory_id=document_service.test_subcategory_id,
@@ -250,6 +235,7 @@ async def test_create_document_api_duplicate_name(document_service, current_user
     with pytest.raises(HTTPException) as exc_info:
         await create_document(
             current_user=current_user,
+            background_tasks=BackgroundTasks(),
             name="Duplicate Doc",
             category_id=document_service.test_category_id,
             subcategory_id=document_service.test_subcategory_id,
@@ -273,6 +259,7 @@ async def test_create_document_api_with_tags(document_service, current_user):
     tags_str = f"{document_service.test_tag1_id},{document_service.test_tag2_id},{document_service.test_tag3_id}"
     result = await create_document(
         current_user=current_user,
+        background_tasks=BackgroundTasks(),
         name="Tagged Document",
         category_id=document_service.test_category_id,
         subcategory_id=document_service.test_subcategory_id,
@@ -294,6 +281,7 @@ async def test_create_document_api_without_tags(document_service, current_user):
     upload_file = create_upload_file("test.pdf")
     result = await create_document(
         current_user=current_user,
+        background_tasks=BackgroundTasks(),
         name="Untagged Document",
         category_id=document_service.test_category_id,
         subcategory_id=document_service.test_subcategory_id,
@@ -315,6 +303,7 @@ async def test_create_document_api_without_description(document_service, current
     upload_file = create_upload_file("test.pdf")
     result = await create_document(
         current_user=current_user,
+        background_tasks=BackgroundTasks(),
         name="No Description Document",
         category_id=document_service.test_category_id,
         subcategory_id=document_service.test_subcategory_id,
@@ -570,7 +559,7 @@ async def test_create_new_version_api_success(document_service, current_user):
 
     # Override the fake service method
     async def mock_create_new_version(
-        document_id, document_file, current_user_id, user_id=None
+        document_id, document_file, current_user_id, background_tasks=None, user_id=None
     ):
         if document_id == doc_id:
             return new_version
@@ -585,6 +574,7 @@ async def test_create_new_version_api_success(document_service, current_user):
     result = await create_new_version(
         document_id=doc_id,
         current_user=current_user,
+        background_tasks=BackgroundTasks(),
         document=upload_file,
         document_service=document_service,
     )
@@ -606,6 +596,7 @@ async def test_create_new_version_api_not_found(document_service, current_user):
         await create_new_version(
             document_id=non_existent_id,
             current_user=current_user,
+            background_tasks=BackgroundTasks(),
             document=upload_file,
             document_service=document_service,
         )
@@ -624,7 +615,7 @@ async def test_create_new_version_api_invalid_file(document_service, current_use
 
     # Override the fake service method to return error
     async def mock_create_new_version(
-        document_id, document_file, current_user_id, user_id=None
+        document_id, document_file, current_user_id, background_tasks=None, user_id=None
     ):
         from schemas import Error
 
@@ -642,6 +633,7 @@ async def test_create_new_version_api_invalid_file(document_service, current_use
         await create_new_version(
             document_id=doc_id,
             current_user=current_user,
+            background_tasks=BackgroundTasks(),
             document=upload_file,
             document_service=document_service,
         )
@@ -1029,13 +1021,13 @@ async def test_get_documents_excludes_archived_by_default_api(document_service):
 
     # Get documents without archive parameter
     result = await get_documents(
-        page=1,
-        page_size=20,
-        category_id=None,
-        stage_id=None,
-        created_date=None,
-        archive=False,
-        search=None,
+        filters=DocumentFilterParams(
+            **{
+                "page": 1,
+                "page_size": 20,
+                "archive": False,
+            }
+        ),
         document_service=document_service,
     )
 
@@ -1090,13 +1082,9 @@ async def test_get_documents_with_archive_filter_true_api(document_service):
 
     # Get archived documents
     result = await get_documents(
-        page=1,
-        page_size=20,
-        category_id=None,
-        stage_id=None,
-        created_date=None,
-        archive=True,
-        search=None,
+        filters=DocumentFilterParams(
+            **{"page": 1, "page_size": 20, "archive": True}
+        ),
         document_service=document_service,
     )
 

@@ -25,6 +25,7 @@ from core.documents.rag import build_vectorstore, retrieve_context
 from core.documents.schemas import (
     DocumentCommentCreate,
     DocumentCreate,
+    DocumentFilterParams,
     DocumentResponse,
     DocumentSearchRequest,
     DocumentSearchResponse,
@@ -88,7 +89,9 @@ async def _run_document_summary(
         )
     except Exception:
         logger.exception(
-            "Summary task failed (version_id=%s, document=%r)", version_id, document_name
+            "Summary task failed (version_id=%s, document=%r)",
+            version_id,
+            document_name,
         )
 
 
@@ -123,14 +126,8 @@ MAX_FILE_SIZE = 10 * 1024 * 1024  # 10MB
 class DocumentService(Protocol):
     async def get_all_documents_paginated(
         self,
-        page: int,
-        page_size: int,
-        category_id: UUID4 | None = None,
-        stage_id: UUID4 | None = None,
-        created_date: date | None = None,
-        archive: bool = False,
+        filters: DocumentFilterParams,
         user_id: UUID4 | None = None,
-        search: str | None = None,
     ) -> PaginatedDocumentResponse | Error: ...
 
     async def create_document(
@@ -250,67 +247,61 @@ class DocumentServiceImpl(DocumentService):
 
     async def get_all_documents_paginated(
         self,
-        page: int = 1,
-        page_size: int = 10,
-        category_id: UUID4 | None = None,
-        stage_id: UUID4 | None = None,
-        created_date: date | None = None,
-        archive: bool = False,
+        filters: DocumentFilterParams,
         user_id: UUID4 | None = None,
-        search: str | None = None,
     ) -> PaginatedDocumentResponse | Error:
         logger.debug(
             "Fetching documents (page=%s, page_size=%s, category_id=%s, "
             "stage_id=%s, created_date=%s, archive=%s, search=%s)",
-            page,
-            page_size,
-            category_id,
-            stage_id,
-            created_date,
-            archive,
-            search,
+            filters.page,
+            filters.page_size,
+            filters.category_id,
+            filters.stage_id,
+            filters.created_date,
+            filters.archive,
+            filters.search,
         )
 
-        skip = (page - 1) * page_size
-        limit = page_size
+        skip = (filters.page - 1) * filters.page_size
+        limit = filters.page_size
 
         async with self._unit_of_work as uow:
             documents = await uow.document_repository.get_documents_paginated(
                 skip=skip,
                 limit=limit,
-                category_id=category_id,
-                stage_id=stage_id,
-                created_date=created_date,
-                archive=archive,
+                category_id=filters.category_id,
+                stage_id=filters.stage_id,
+                created_date=filters.created_date,
+                archive=filters.archive,
                 user_id=user_id,
-                search=search,
+                search=filters.search,
             )
             total_rows = await uow.document_repository.count_documents(
-                category_id=category_id,
-                stage_id=stage_id,
-                created_date=created_date,
-                archive=archive,
+                category_id=filters.category_id,
+                stage_id=filters.stage_id,
+                created_date=filters.created_date,
+                archive=filters.archive,
                 user_id=user_id,
-                search=search,
+                search=filters.search,
             )
 
-        total_pages = (total_rows + page_size - 1) // page_size
+        total_pages = (total_rows + filters.page_size - 1) // filters.page_size
 
         logger.info(
             "Documents fetched (page=%s, page_size=%s, total_rows=%s, total_pages=%s)",
-            page,
-            page_size,
+            filters.page,
+            filters.page_size,
             total_rows,
             total_pages,
         )
         return PaginatedDocumentResponse(
             data=[DocumentResponse.model_validate(doc) for doc in documents],
-            current_page=page,
+            current_page=filters.page,
             total_pages=total_pages,
             total_rows=total_rows,
-            page_size=page_size,
-            has_next=page < total_pages,
-            has_previous=page > 1,
+            page_size=filters.page_size,
+            has_next=filters.page < total_pages,
+            has_previous=filters.page > 1,
         )
 
     async def create_document(
@@ -446,7 +437,9 @@ class DocumentServiceImpl(DocumentService):
             )
 
         if background_tasks is not None:
-            background_tasks.add_task(_run_document_summary, version_id, doc_name, doc_file)
+            background_tasks.add_task(
+                _run_document_summary, version_id, doc_name, doc_file
+            )
             background_tasks.add_task(_run_document_embedding, version_id, doc_file)
 
         logger.info(
@@ -820,7 +813,9 @@ class DocumentServiceImpl(DocumentService):
             await uow.commit()
 
         if background_tasks is not None:
-            background_tasks.add_task(_run_document_summary, version_id, doc_name, doc_file)
+            background_tasks.add_task(
+                _run_document_summary, version_id, doc_name, doc_file
+            )
             background_tasks.add_task(_run_document_embedding, version_id, doc_file)
 
         logger.info(
@@ -1437,7 +1432,9 @@ class DocumentServiceImpl(DocumentService):
         user_id: UUID4 | None = None,
     ) -> str | Error:
         logger.info(
-            "Chat with document version (document_id=%s, version_id=%s)", document_id, version_id
+            "Chat with document version (document_id=%s, version_id=%s)",
+            document_id,
+            version_id,
         )
 
         async with self._unit_of_work as uow:
@@ -1445,7 +1442,9 @@ class DocumentServiceImpl(DocumentService):
                 document_id, user_id=user_id
             )
             if not document:
-                return Error(detail="Document not found", code=status.HTTP_404_NOT_FOUND)
+                return Error(
+                    detail="Document not found", code=status.HTTP_404_NOT_FOUND
+                )
             versions = await uow.document_repository.get_version_histories(document_id)
             version = next((v for v in versions if v.id == version_id), None)
             if not version:

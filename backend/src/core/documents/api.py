@@ -1,5 +1,6 @@
 import logging
 from pathlib import Path
+from typing import Annotated
 
 from dependency_injector.wiring import Provide, inject
 from fastapi import (
@@ -70,18 +71,10 @@ def _get_media_type(file_extension: str) -> str:
 )
 @inject
 async def get_documents(
-    filters: DocumentFilterParams,
+    filters: Annotated[DocumentFilterParams, Depends()],
     document_service: DocumentService = Depends(Provide["document_service"]),
 ) -> PaginatedDocumentResponse:
-    response = await document_service.get_all_documents_paginated(
-        page=filters.page,
-        page_size=filters.page_size,
-        category_id=filters.category_id,
-        stage_id=filters.stage_id,
-        created_date=filters.created_date,
-        archive=filters.archive,
-        search=filters.search,
-    )
+    response = await document_service.get_all_documents_paginated(filters=filters)
     if isinstance(response, Error):
         raise HTTPException(status_code=response.code, detail=response.detail)
     return response
@@ -143,18 +136,11 @@ async def create_document(
 @inject
 async def get_my_documents(
     current_user: CurrentUser,
-    filters: DocumentFilterParams,
+    filters: Annotated[DocumentFilterParams, Depends()],
     document_service: DocumentService = Depends(Provide["document_service"]),
 ) -> PaginatedDocumentResponse:
     response = await document_service.get_all_documents_paginated(
-        page=filters.page,
-        page_size=filters.page_size,
-        category_id=filters.category_id,
-        stage_id=filters.stage_id,
-        created_date=filters.created_date,
-        archive=filters.archive,
-        user_id=current_user.id,
-        search=filters.search,
+        filters=filters, user_id=current_user.id
     )
     if isinstance(response, Error):
         raise HTTPException(status_code=response.code, detail=response.detail)
