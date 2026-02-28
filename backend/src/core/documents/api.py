@@ -86,9 +86,9 @@ async def get_documents(
     "/documents",
     response_model=DocumentResponse,
     dependencies=[
-        Depends(require_any_permission("documents.create", "documents.create_my"))
+        Depends(require_permission("documents.create"))
     ],
-    description="Required permission: documents.create | documents.create_my",
+    description="Required permission: documents.create",
 )
 @inject
 async def create_document(

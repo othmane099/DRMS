@@ -25,11 +25,11 @@ logger = logging.getLogger(__name__)
     dependencies=[
         Depends(
             require_any_permission(
-                "subcategories.list", "documents.create", "documents.create_my"
+                "subcategories.list", "documents.create"
             )
         )
     ],
-    description="Required permission: subcategories.list | documents.create | documents.create_my",
+    description="Required permission: subcategories.list | documents.create",
 )
 @inject
 async def get_subcategories(

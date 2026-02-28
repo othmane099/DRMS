@@ -68,7 +68,6 @@ MY_PERMISSIONS = [
     "comments.create_my",
     "comments.list_my",
     "documents.archive_my",
-    "documents.create_my",
     "documents.create_version_my",
     "documents.delete_my",
     "documents.download_my",

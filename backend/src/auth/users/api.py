@@ -78,14 +78,13 @@ async def update_password(
         Depends(
             require_any_permission(
                 "documents.create",
-                "documents.create_my",
                 "reminders.create",
                 "reminders.create_my",
             )
         )
     ],
     description="Get users for assignment (excludes current user and superusers)."
-    " Required permission: documents.create | documents.create_my | reminders.create | reminders.create_my",
+    " Required permission: documents.create | reminders.create | reminders.create_my",
 )
 @inject
 async def get_users_for_assignment(
