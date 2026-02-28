@@ -169,36 +169,9 @@ async def delete_document(
 
 
 @router.put(
-    "/documents/{document_id}/me",
-    response_model=DocumentResponse,
-    dependencies=[Depends(require_permission("documents.update_my"))],
-    description="Required permission: documents.update_my",
-)
-@inject
-async def update_my_document(
-    document_id: UUID4,
-    current_user: CurrentUser,
-    document_update: DocumentUpdate,
-    document_service: DocumentService = Depends(Provide["document_service"]),
-) -> DocumentResponse:
-    response = await document_service.update_document(
-        document_id=document_id,
-        document_update=document_update,
-        current_user_id=current_user.id,
-        user_id=current_user.id,
-    )
-
-    if isinstance(response, Error):
-        raise HTTPException(status_code=response.code, detail=response.detail)
-
-    return DocumentResponse.model_validate(response)
-
-
-@router.put(
     "/documents/{document_id}",
     response_model=DocumentResponse,
-    dependencies=[Depends(require_permission("documents.update"))],
-    description="Required permission: documents.update",
+    description="Required permission: documents.update | documents.update_my",
 )
 @inject
 async def update_document(
@@ -210,7 +183,7 @@ async def update_document(
     response = await document_service.update_document(
         document_id=document_id,
         document_update=document_update,
-        current_user_id=current_user.id,
+        current_user=current_user,
     )
 
     if isinstance(response, Error):
