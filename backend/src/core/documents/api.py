@@ -281,39 +281,19 @@ async def preview_document(
 
 
 @router.get(
-    "/documents/{document_id}/versions/me",
+    "/documents/{document_id}/versions",
     response_model=list[VersionHistoryResponse],
-    dependencies=[Depends(require_permission("documents.view_version_my"))],
-    description="Required permission: documents.view_version_my",
+    description="Required permission: documents.view_version | documents.view_version_my",
 )
 @inject
-async def get_my_version_history(
+async def get_version_history(
     document_id: UUID4,
     current_user: CurrentUser,
     document_service: DocumentService = Depends(Provide["document_service"]),
 ) -> list[VersionHistoryResponse]:
     response = await document_service.get_version_history(
-        document_id=document_id, user_id=current_user.id
+        document_id=document_id, current_user=current_user
     )
-
-    if isinstance(response, Error):
-        raise HTTPException(status_code=response.code, detail=response.detail)
-
-    return [VersionHistoryResponse.model_validate(version) for version in response]
-
-
-@router.get(
-    "/documents/{document_id}/versions",
-    response_model=list[VersionHistoryResponse],
-    dependencies=[Depends(require_permission("documents.view_version"))],
-    description="Required permission: documents.view_version",
-)
-@inject
-async def get_version_history(
-    document_id: UUID4,
-    document_service: DocumentService = Depends(Provide["document_service"]),
-) -> list[VersionHistoryResponse]:
-    response = await document_service.get_version_history(document_id=document_id)
 
     if isinstance(response, Error):
         raise HTTPException(status_code=response.code, detail=response.detail)
