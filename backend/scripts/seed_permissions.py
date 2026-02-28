@@ -20,7 +20,6 @@ PERMISSIONS: dict[str, str] = {
     "documents.archive": "Archive Document",
     "documents.archive_my": "Archive My Own Document",
     "documents.create": "Create Document",
-    "documents.create_my": "Create My Own Document",
     "documents.create_version": "Create Document Version",
     "documents.create_version_my": "Create My Document Version",
     "documents.delete": "Delete Document",
