@@ -75,12 +75,7 @@ async def update_password(
     "/users/for-assignment",
     response_model=list[UserBasicIdResponse],
     dependencies=[
-        Depends(
-            require_any_permission(
-                "documents.create",
-                "reminders.create"
-            )
-        )
+        Depends(require_any_permission("documents.create", "reminders.create"))
     ],
     description="Get users for assignment (excludes current user and superusers)."
     " Required permission: documents.create | reminders.create",
