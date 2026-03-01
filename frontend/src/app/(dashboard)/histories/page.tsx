@@ -7,8 +7,9 @@ export default function HistoriesPage() {
   return (
     <HistoriesList
       title="Document History"
-      description="View all document actions and changes"
+      description="View document actions and changes"
       permission="documents.history"
+      permissionMy="documents.history_my"
       getHistories={(filters) => api.getDocumentHistories(filters)}
     />
   );

@@ -655,52 +655,6 @@ class ApiClient {
     });
   }
 
-  async getMyDocumentReminders(documentId: string): Promise<DocumentReminder[]> {
-    return this.request<DocumentReminder[]>(`/api/v1/documents/${documentId}/reminders/me`);
-  }
-
-  async createMyDocumentReminder(
-    documentId: string,
-    data: {
-      date: string;
-      time: string;
-      subject: string;
-      message: string;
-      assign_user: string[];
-    }
-  ): Promise<DocumentReminder> {
-    return this.request<DocumentReminder>(`/api/v1/documents/${documentId}/reminders/me`, {
-      method: 'POST',
-      body: JSON.stringify(data),
-    });
-  }
-
-  async getMyReminder(reminderId: string): Promise<DocumentReminder> {
-    return this.request<DocumentReminder>(`/api/v1/reminders/${reminderId}/me`);
-  }
-
-  async updateMyReminder(
-    reminderId: string,
-    data: {
-      date: string;
-      time: string;
-      subject: string;
-      message: string;
-      assign_user: string[];
-    }
-  ): Promise<DocumentReminder> {
-    return this.request<DocumentReminder>(`/api/v1/reminders/${reminderId}/me`, {
-      method: 'PUT',
-      body: JSON.stringify(data),
-    });
-  }
-
-  async deleteMyReminder(reminderId: string): Promise<{ message: string }> {
-    return this.request<{ message: string }>(`/api/v1/reminders/${reminderId}/me`, {
-      method: 'DELETE',
-    });
-  }
-
   async downloadDocument(id: string): Promise<void> {
     const token = this.getToken();
     const headers: HeadersInit = {};
@@ -898,20 +852,6 @@ class ApiClient {
     );
   }
 
-  async getMyDocumentHistories(filters?: DocumentHistoryFilters): Promise<PaginatedDocumentHistoryResponse> {
-    const params = new URLSearchParams();
-    if (filters) {
-      if (filters.search) params.set('search', filters.search);
-      if (filters.page) params.set('page', String(filters.page));
-      if (filters.page_size) params.set('page_size', String(filters.page_size));
-    }
-
-    const query = params.toString();
-    return this.request<PaginatedDocumentHistoryResponse>(
-        `/api/v1/histories/me${query ? `?${query}` : ''}`
-    );
-  }
-
   async getDocumentComments(id: string): Promise<DocumentComment[]> {
     return this.request<DocumentComment[]>(`/api/v1/documents/${id}/comments`);
   }
@@ -994,23 +934,6 @@ class ApiClient {
     const query = params.toString();
     return this.request<PaginatedResponse<DocumentReminder>>(
       `/api/v1/reminders${query ? `?${query}` : ''}`
-    );
-  }
-
-  async getMyReminders(filters?: {
-    page?: number;
-    page_size?: number;
-    document_id?: string;
-  }): Promise<PaginatedResponse<DocumentReminder>> {
-    const params = new URLSearchParams();
-    if (filters) {
-      if (filters.page) params.set('page', String(filters.page));
-      if (filters.page_size) params.set('page_size', String(filters.page_size));
-      if (filters.document_id) params.set('document_id', filters.document_id);
-    }
-    const query = params.toString();
-    return this.request<PaginatedResponse<DocumentReminder>>(
-        `/api/v1/reminders/me${query ? `?${query}` : ''}`
     );
   }
 
