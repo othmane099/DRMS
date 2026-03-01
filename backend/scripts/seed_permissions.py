@@ -38,6 +38,8 @@ PERMISSIONS: dict[str, str] = {
     "documents.preview_my": "Preview My Own Document",
     "documents.preview_version": "Preview Document Version",
     "documents.preview_version_my": "Preview My Document Version",
+    "documents.delete_share": "Revoke Document Share",
+    "documents.delete_share_my": "Revoke My Own Document Share",
     "documents.share": "Share Document",
     "documents.share_my": "Share My Own Document",
     "documents.update": "Edit Document",

@@ -512,7 +512,7 @@ async def get_document_assignable_users(
 @router.delete(
     "/documents/{document_id}/share/{share_id}",
     response_model=Message,
-    description="Required permission: documents.share | documents.share_my",
+    description="Required permission: documents.delete_share | documents.delete_share_my. Only the document creator can revoke shares.",
 )
 @inject
 async def delete_share_document(
