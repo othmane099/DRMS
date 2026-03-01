@@ -26,13 +26,13 @@ class ReminderService(Protocol):
         page: int,
         page_size: int,
         document_id: UUID4 | None = None,
-        user_id: UUID4 | None = None,
+        current_user: User | None = None,
     ) -> PaginatedReminderResponse | Error: ...
 
     async def get_reminder_by_id(
         self,
         reminder_id: UUID4,
-        user_id: UUID4 | None = None,
+        current_user: User | None = None,
     ) -> Reminder | Error: ...
 
     async def create_reminder(
@@ -52,12 +52,11 @@ class ReminderService(Protocol):
         self,
         reminder_id: UUID4,
         reminder_update: ReminderUpdate,
-        current_user_id: UUID4,
-        user_id: UUID4 | None = None,
+        current_user: User,
     ) -> Reminder | Error: ...
 
     async def delete_reminder(
-        self, reminder_id: UUID4, current_user_id: UUID4, user_id: UUID4 | None = None
+        self, reminder_id: UUID4, current_user: User
     ) -> Message | Error: ...
 
 
@@ -71,7 +70,7 @@ class ReminderServiceImpl(ReminderService):
         page: int,
         page_size: int,
         document_id: UUID4 | None = None,
-        user_id: UUID4 | None = None,
+        current_user: User | None = None,
     ) -> PaginatedReminderResponse | Error:
         logger.info(
             "Fetching reminders (page=%s, page_size=%s, document_id=%s)",
@@ -79,6 +78,16 @@ class ReminderServiceImpl(ReminderService):
             page_size,
             document_id,
         )
+
+        user_id: UUID4 | None = None
+        if current_user is not None:
+            result = await _permission_checker(
+                current_user, "reminders.list", "reminders.list_my"
+            )
+            if isinstance(result, Error):
+                return result
+            can_list_all = result is None or "reminders.list" in result
+            user_id = None if can_list_all else current_user.id
 
         skip = (page - 1) * page_size
 
@@ -105,9 +114,19 @@ class ReminderServiceImpl(ReminderService):
     async def get_reminder_by_id(
         self,
         reminder_id: UUID4,
-        user_id: UUID4 | None = None,
+        current_user: User | None = None,
     ) -> Reminder | Error:
         logger.info("Fetching reminder (id=%s)", reminder_id)
+
+        user_id: UUID4 | None = None
+        if current_user is not None:
+            result = await _permission_checker(
+                current_user, "reminders.view", "reminders.view_my"
+            )
+            if isinstance(result, Error):
+                return result
+            can_view_all = result is None or "reminders.view" in result
+            user_id = None if can_view_all else current_user.id
 
         async with self._unit_of_work as uow:
             reminder = await uow.reminder_repository.get_reminder_by_id(
@@ -125,17 +144,24 @@ class ReminderServiceImpl(ReminderService):
         self,
         reminder_id: UUID4,
         reminder_update: ReminderUpdate,
-        current_user_id: UUID4,
-        user_id: UUID4 | None = None,
+        current_user: User,
     ) -> Reminder | Error:
         logger.info(
-            "Updating reminder (id=%s, user_id=%s)", reminder_id, current_user_id
+            "Updating reminder (id=%s, user_id=%s)", reminder_id, current_user.id
         )
+
+        result = await _permission_checker(
+            current_user, "reminders.update", "reminders.update_my"
+        )
+        if isinstance(result, Error):
+            return result
+        can_update_all = result is None or "reminders.update" in result
+        scope_user_id = None if can_update_all else current_user.id
 
         async with self._unit_of_work as uow:
             # Verify reminder exists
             reminder = await uow.reminder_repository.get_reminder_by_id(
-                reminder_id, user_id=user_id
+                reminder_id, user_id=scope_user_id
             )
             if not reminder:
                 logger.warning("Reminder not found (id=%s)", reminder_id)
@@ -169,15 +195,15 @@ class ReminderServiceImpl(ReminderService):
                     code=status.HTTP_400_BAD_REQUEST,
                 )
 
-            for user_id in reminder_update.assign_user:
-                user = await uow.user_repository.get_user_by_id(user_id)
+            for assign_user_id in reminder_update.assign_user:
+                user = await uow.user_repository.get_user_by_id(assign_user_id)
                 if not user:
                     logger.warning(
                         "Reminder update rejected: assigned user not found (user_id=%s)",
-                        user_id,
+                        assign_user_id,
                     )
                     return Error(
-                        detail=f"User not found: {user_id}",
+                        detail=f"User not found: {assign_user_id}",
                         code=status.HTTP_404_NOT_FOUND,
                     )
 
@@ -196,7 +222,7 @@ class ReminderServiceImpl(ReminderService):
                 document_id=reminder.document_id,
                 action="Update reminder",
                 description=f"Update reminder for {reminder.document.name}",
-                created_by=current_user_id,
+                created_by=current_user.id,
             )
 
             await uow.commit()
@@ -207,18 +233,25 @@ class ReminderServiceImpl(ReminderService):
     async def delete_reminder(
         self,
         reminder_id: UUID4,
-        current_user_id: UUID4,
-        user_id: UUID4 | None = None,
+        current_user: User,
     ) -> Message | Error:
         """Delete a reminder"""
         logger.info(
-            "Deleting reminder (id=%s, user_id=%s)", reminder_id, current_user_id
+            "Deleting reminder (id=%s, user_id=%s)", reminder_id, current_user.id
         )
+
+        result = await _permission_checker(
+            current_user, "reminders.delete", "reminders.delete_my"
+        )
+        if isinstance(result, Error):
+            return result
+        can_delete_all = result is None or "reminders.delete" in result
+        scope_user_id = None if can_delete_all else current_user.id
 
         async with self._unit_of_work as uow:
             # Verify reminder exists
             reminder = await uow.reminder_repository.get_reminder_by_id(
-                reminder_id, user_id=user_id
+                reminder_id, user_id=scope_user_id
             )
             if not reminder:
                 logger.warning("Reminder not found (id=%s)", reminder_id)
@@ -231,7 +264,7 @@ class ReminderServiceImpl(ReminderService):
                 document_id=reminder.document_id,
                 action="Delete reminder",
                 description=f"Delete reminder for {reminder.document.name}",
-                created_by=current_user_id,
+                created_by=current_user.id,
             )
 
             # Delete reminder
@@ -255,7 +288,7 @@ class ReminderServiceImpl(ReminderService):
         )
 
         result = await _permission_checker(
-            current_user, "reminders.create", "reminders.create_my"
+            current_user, "reminders.create"
         )
         if isinstance(result, Error):
             return result

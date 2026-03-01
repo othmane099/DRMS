@@ -3,6 +3,8 @@ from typing import Protocol
 
 from pydantic import UUID4
 
+from auth.models import User
+from core.documents.service import _permission_checker
 from core.histories.schemas import (
     DocumentHistoryResponse,
     PaginatedDocumentHistoryResponse,
@@ -19,7 +21,7 @@ class HistoryService(Protocol):
         page: int,
         page_size: int,
         search: str | None = None,
-        user_id: UUID4 | None = None,
+        current_user: User | None = None,
     ) -> PaginatedDocumentHistoryResponse | Error: ...
 
 
@@ -32,7 +34,7 @@ class HistoryServiceImpl:
         page: int = 1,
         page_size: int = 20,
         search: str | None = None,
-        user_id: UUID4 | None = None,
+        current_user: User | None = None,
     ) -> PaginatedDocumentHistoryResponse | Error:
         logger.debug(
             "Fetching document histories (page=%s, page_size=%s, search=%s)",
@@ -40,6 +42,16 @@ class HistoryServiceImpl:
             page_size,
             search,
         )
+
+        user_id: UUID4 | None = None
+        if current_user is not None:
+            result = await _permission_checker(
+                current_user, "documents.history", "documents.history_my"
+            )
+            if isinstance(result, Error):
+                return result
+            can_view_all = result is None or "documents.history" in result
+            user_id = None if can_view_all else current_user.id
 
         skip = (page - 1) * page_size
         limit = page_size

@@ -579,7 +579,7 @@ async def preview_shared_document(
     "/documents/{document_id}/reminders",
     response_model=ReminderResponse,
     status_code=201,
-    description="Required permission: reminders.create | reminders.create_my",
+    description="Required permission: reminders.create",
 )
 @inject
 async def create_reminder(

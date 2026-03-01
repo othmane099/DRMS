@@ -216,14 +216,13 @@ class FakeReminderService(ReminderService):
         self,
         reminder_id: UUID4,
         reminder_update: ReminderUpdate,
-        current_user_id: UUID4,
-        user_id: UUID4 | None = None,
+        current_user,
     ) -> Reminder | Error:
         from auth.models import User
 
         # Verify reminder exists
         reminder = self.reminders.get(reminder_id)
-        if not reminder or (user_id and reminder.created_by != user_id):
+        if not reminder:
             return Error(detail="Reminder not found", code=status.HTTP_404_NOT_FOUND)
 
         # Parse time string to time object
@@ -284,10 +283,10 @@ class FakeReminderService(ReminderService):
     async def get_reminder_by_id(
         self,
         reminder_id: UUID4,
-        user_id: UUID4 | None = None,
+        current_user=None,
     ) -> Reminder | Error:
         reminder = self.reminders.get(reminder_id)
-        if not reminder or (user_id and reminder.created_by != user_id):
+        if not reminder:
             return Error(detail="Reminder not found", code=status.HTTP_404_NOT_FOUND)
         return reminder
 
@@ -296,13 +295,14 @@ class FakeReminderService(ReminderService):
         page: int,
         page_size: int,
         document_id: UUID4 | None = None,
-        user_id: UUID4 | None = None,
+        current_user=None,
     ) -> PaginatedReminderResponse | Error:
         reminders = list(self.reminders.values())
 
         if document_id:
             reminders = [r for r in reminders if r.document_id == document_id]
 
+        user_id = current_user.id if current_user else None
         if user_id:
             reminders = [
                 r
@@ -331,11 +331,11 @@ class FakeReminderService(ReminderService):
         )
 
     async def delete_reminder(
-        self, reminder_id: UUID4, current_user_id: UUID4, user_id: UUID4 | None = None
+        self, reminder_id: UUID4, current_user
     ) -> Message | Error:
         # Verify reminder exists
         reminder = self.reminders.get(reminder_id)
-        if not reminder or (user_id and reminder.created_by != user_id):
+        if not reminder:
             return Error(detail="Reminder not found", code=status.HTTP_404_NOT_FOUND)
 
         # Delete reminder

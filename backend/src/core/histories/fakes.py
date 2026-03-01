@@ -83,10 +83,11 @@ class FakeHistoryService:
         page: int,
         page_size: int,
         search: str | None = None,
-        user_id: UUID4 | None = None,
+        current_user=None,
     ) -> PaginatedDocumentHistoryResponse | Error:
         histories = list(self.document_histories.values())
 
+        user_id = current_user.id if current_user else None
         if user_id:
             histories = [h for h in histories if h.created_by == user_id]
 
