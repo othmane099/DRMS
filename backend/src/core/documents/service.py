@@ -281,8 +281,7 @@ class DocumentService(Protocol):
         self,
         document_id: UUID4,
         share_link_create: ShareLinkCreate,
-        current_user_id: UUID4,
-        user_id: UUID4 | None = None,
+        current_user: User,
     ) -> str | Error: ...
 
     async def validate_share_link(
@@ -292,7 +291,7 @@ class DocumentService(Protocol):
     ) -> UUID4 | Error: ...
 
     async def search_documents(
-        self, request: DocumentSearchRequest, user_id: UUID4 | None = None
+        self, request: DocumentSearchRequest, current_user: User | None = None
     ) -> DocumentSearchResponse | Error: ...
 
     async def chat_with_document_version(
@@ -300,7 +299,7 @@ class DocumentService(Protocol):
         document_id: UUID4,
         version_id: UUID4,
         user_message: str,
-        user_id: UUID4 | None = None,
+        current_user: User | None = None,
     ) -> str | Error: ...
 
 
@@ -1442,11 +1441,18 @@ class DocumentServiceImpl(DocumentService):
         self,
         document_id: UUID4,
         share_link_create: ShareLinkCreate,
-        current_user_id: UUID4,
-        user_id: UUID4 | None = None,
+        current_user: User,
     ) -> str | Error:
         """Generate encrypted shareable link for document"""
         logger.info("Generating share link (document_id=%s)", document_id)
+
+        result = await _permission_checker(
+            current_user, "documents.share", "documents.share_my"
+        )
+        if isinstance(result, Error):
+            return result
+        can_share_all = result is None or "documents.share" in result
+        scope_user_id = None if can_share_all else current_user.id
 
         # Validate secret key is configured
         if not settings.SHARE_LINK_SECRET_KEY:
@@ -1459,7 +1465,7 @@ class DocumentServiceImpl(DocumentService):
         async with self._unit_of_work as uow:
             # Verify document exists
             document = await uow.document_repository.get_document_by_id(
-                document_id, user_id=user_id
+                document_id, user_id=scope_user_id
             )
             if not document:
                 logger.warning("Document not found (id=%s)", document_id)
@@ -1468,11 +1474,11 @@ class DocumentServiceImpl(DocumentService):
                 )
 
             # Only the document creator can generate share links
-            if document.created_by != current_user_id:
+            if document.created_by != current_user.id:
                 logger.warning(
                     "Share link generation rejected: user is not the creator (id=%s, user=%s, creator=%s)",
                     document_id,
-                    current_user_id,
+                    current_user.id,
                     document.created_by,
                 )
                 return Error(
@@ -1523,7 +1529,7 @@ class DocumentServiceImpl(DocumentService):
                 document_id=document.id,
                 action="Share Link Generate",
                 description=description,
-                created_by=current_user_id,
+                created_by=current_user.id,
             )
 
             await uow.commit()
@@ -1600,9 +1606,19 @@ class DocumentServiceImpl(DocumentService):
     async def search_documents(
         self,
         request: DocumentSearchRequest,
-        user_id: UUID4 | None = None,
+        current_user: User | None = None,
     ) -> DocumentSearchResponse | Error:
         logger.info("Searching documents: %s", request.message)
+
+        user_id: UUID4 | None = None
+        if current_user is not None:
+            result = await _permission_checker(
+                current_user, "documents.search", "documents.search_my"
+            )
+            if isinstance(result, Error):
+                return result
+            can_search_all = result is None or "documents.search" in result
+            user_id = None if can_search_all else current_user.id
 
         try:
             filters = await extract_filters(request.message)
@@ -1634,7 +1650,7 @@ class DocumentServiceImpl(DocumentService):
         document_id: UUID4,
         version_id: UUID4,
         user_message: str,
-        user_id: UUID4 | None = None,
+        current_user: User | None = None,
     ) -> str | Error:
         logger.info(
             "Chat with document version (document_id=%s, version_id=%s)",
@@ -1642,9 +1658,19 @@ class DocumentServiceImpl(DocumentService):
             version_id,
         )
 
+        scope_user_id = None
+        if current_user is not None:
+            result = await _permission_checker(
+                current_user, "documents.chat", "documents.chat_my"
+            )
+            if isinstance(result, Error):
+                return result
+            can_chat_all = result is None or "documents.chat" in result
+            scope_user_id = None if can_chat_all else current_user.id
+
         async with self._unit_of_work as uow:
             document = await uow.document_repository.get_document_by_id(
-                document_id, user_id=user_id
+                document_id, user_id=scope_user_id
             )
             if not document:
                 return Error(
@@ -1656,7 +1682,7 @@ class DocumentServiceImpl(DocumentService):
                 return Error(detail="Version not found", code=status.HTTP_404_NOT_FOUND)
             document_name = document.name
 
-        user_id_str = str(user_id) if user_id else "anon"
+        user_id_str = str(current_user.id) if current_user else "anon"
         history = await load_history(str(document_id), str(version_id), user_id_str)
         context = await retrieve_context(str(version_id), user_message)
         reply = await chat_with_document(context, document_name, history, user_message)

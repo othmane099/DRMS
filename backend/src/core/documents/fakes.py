@@ -1153,19 +1153,15 @@ class FakeDocumentService(DocumentService):
         self,
         document_id: UUID4,
         share_link_create: ShareLinkCreate,
-        current_user_id: UUID4,
-        user_id: UUID4 | None = None,
+        current_user,
     ) -> str | Error:
         # Check if document exists
         document = self.documents.get(document_id)
-        if not document or (
-            user_id
-            and (document.created_by != user_id or document.assigned_to != user_id)
-        ):
+        if not document:
             return Error(detail="Document not found", code=status.HTTP_404_NOT_FOUND)
 
         # Only the document creator can generate share links
-        if document.created_by != current_user_id:
+        if document.created_by != current_user.id:
             return Error(
                 detail="Only the document creator can generate share links",
                 code=status.HTTP_403_FORBIDDEN,
@@ -1255,17 +1251,13 @@ class FakeDocumentService(DocumentService):
         self,
         document_id: UUID4,
         reminder_create: ReminderCreate,
-        current_user_id: UUID4,
-        user_id: UUID4 | None = None,
+        current_user,
     ) -> Reminder | Error:
         from auth.models import User
 
         # Verify document exists
         document = self.documents.get(document_id)
-        if not document or (
-            user_id
-            and (document.created_by != user_id or document.assigned_to != user_id)
-        ):
+        if not document:
             return Error(detail="Document not found", code=status.HTTP_404_NOT_FOUND)
 
         # Parse time string to time object
@@ -1309,13 +1301,13 @@ class FakeDocumentService(DocumentService):
             time=reminder_time,
             subject=reminder_create.subject,
             message=reminder_create.message,
-            created_by=current_user_id,
+            created_by=current_user.id,
             created_at=datetime.now(),
         )
 
         # Populate relationships
         reminder.creator = User(
-            id=current_user_id,
+            id=current_user.id,
             first_name="Mock",
             last_name="Creator",
             username="mockcreator",
@@ -1422,13 +1414,10 @@ class FakeDocumentService(DocumentService):
     async def get_reminders_by_document(
         self,
         document_id: UUID4,
-        user_id: UUID4 | None = None,
+        current_user=None,
     ) -> list[Reminder] | Error:
         document = self.documents.get(document_id)
-        if not document or (
-            user_id
-            and (document.created_by != user_id or document.assigned_to != user_id)
-        ):
+        if not document:
             return Error(detail="Document not found", code=status.HTTP_404_NOT_FOUND)
 
         reminders = [
