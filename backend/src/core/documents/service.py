@@ -643,11 +643,30 @@ class DocumentServiceImpl(DocumentService):
                             code=status.HTTP_404_NOT_FOUND,
                         )
 
+            changed_fields = []
+            if existing_document.name != document_update.name:
+                changed_fields.append(f"name: '{existing_document.name}' → '{document_update.name}'")
+            if str(existing_document.category_id) != str(document_update.category_id):
+                changed_fields.append("category")
+            if str(existing_document.subcategory_id) != str(document_update.subcategory_id):
+                changed_fields.append("subcategory")
+            if str(existing_document.stage_id) != str(document_update.stage_id):
+                changed_fields.append("stage")
+            if str(existing_document.assigned_to) != str(document_update.assigned_to):
+                changed_fields.append("assigned user")
+            if existing_document.description != document_update.description:
+                changed_fields.append("description")
+            existing_tag_ids = {str(t.id) for t in (existing_document.tags or [])}
+            new_tag_ids = {str(t) for t in (document_update.tag_ids or [])}
+            if existing_tag_ids != new_tag_ids:
+                changed_fields.append("tags")
+
             document = await uow.document_repository.update_document(
                 document_id, document_update
             )
 
-            description = f"Document '{document.name}' updated"
+            fields_summary = ", ".join(changed_fields) if changed_fields else "no changes"
+            description = f"Document '{document.name}' updated — changed: {fields_summary}"
             await uow.history_repository.create_document_history(
                 document_id=document.id,
                 action="Document Update",
@@ -1231,6 +1250,7 @@ class DocumentServiceImpl(DocumentService):
 
             # Share with each user
             shared_list = []
+            shared_usernames = []
             for share_user_id in share_data.user_ids:
                 # Verify user exists
                 user = await uow.user_repository.get_user_by_id(share_user_id)
@@ -1261,9 +1281,10 @@ class DocumentServiceImpl(DocumentService):
                     end_date=end_date,
                 )
                 shared_list.append(share)
+                shared_usernames.append(user.username)
 
             # Create document history entry
-            user_names = ", ".join([str(uid) for uid in share_data.user_ids])
+            user_names = ", ".join(shared_usernames) if shared_usernames else "none"
             description = f"Document '{document.name}' shared with users: {user_names}"
             await uow.history_repository.create_document_history(
                 document_id=document.id,
