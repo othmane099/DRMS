@@ -33,7 +33,7 @@ logger = logging.getLogger(__name__)
     "/users",
     response_model=PaginatedUserResponse,
     dependencies=[Depends(require_permission("users.list"))],
-    description="Required permission: users.list | reminders.create | reminders.create_my",
+    description="Required permission: users.list | reminders.create",
 )
 @inject
 async def get_users(
@@ -78,13 +78,12 @@ async def update_password(
         Depends(
             require_any_permission(
                 "documents.create",
-                "reminders.create",
-                "reminders.create_my",
+                "reminders.create"
             )
         )
     ],
     description="Get users for assignment (excludes current user and superusers)."
-    " Required permission: documents.create | reminders.create | reminders.create_my",
+    " Required permission: documents.create | reminders.create",
 )
 @inject
 async def get_users_for_assignment(

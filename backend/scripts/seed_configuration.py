@@ -80,7 +80,6 @@ MY_PERMISSIONS = [
     "documents.update_my",
     "documents.view_my",
     "documents.view_version_my",
-    "reminders.create_my",
     "reminders.delete_my",
     "reminders.list_my",
     "reminders.update_my",

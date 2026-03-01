@@ -52,7 +52,6 @@ PERMISSIONS: dict[str, str] = {
     "logged_histories.view": "View Logged History",
     "permissions.list": "List Permissions",
     "reminders.create": "Create Reminder",
-    "reminders.create_my": "Create My Own Reminder",
     "reminders.delete": "Delete Reminder",
     "reminders.delete_my": "Delete My Own Reminder",
     "reminders.list": "List Reminders",
