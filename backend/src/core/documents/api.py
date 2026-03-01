@@ -467,39 +467,19 @@ async def share_document(
 
 
 @router.get(
-    "/documents/{document_id}/shared-users/me",
+    "/documents/{document_id}/shared-users",
     response_model=list[ShareDocumentResponse],
-    dependencies=[Depends(require_permission("documents.share_my"))],
-    description="Required permission: documents.share_my",
+    description="Required permission: documents.share | documents.share_my",
 )
 @inject
-async def get_my_shared_users(
+async def get_shared_users(
     document_id: UUID4,
     current_user: CurrentUser,
     document_service: DocumentService = Depends(Provide["document_service"]),
 ) -> list[ShareDocumentResponse]:
     response = await document_service.get_shared_users(
-        document_id=document_id, user_id=current_user.id
+        document_id=document_id, current_user=current_user
     )
-
-    if isinstance(response, Error):
-        raise HTTPException(status_code=response.code, detail=response.detail)
-
-    return [ShareDocumentResponse.model_validate(share) for share in response]
-
-
-@router.get(
-    "/documents/{document_id}/shared-users",
-    response_model=list[ShareDocumentResponse],
-    dependencies=[Depends(require_permission("documents.share"))],
-    description="Required permission: documents.share",
-)
-@inject
-async def get_shared_users(
-    document_id: UUID4,
-    document_service: DocumentService = Depends(Provide["document_service"]),
-) -> list[ShareDocumentResponse]:
-    response = await document_service.get_shared_users(document_id=document_id)
 
     if isinstance(response, Error):
         raise HTTPException(status_code=response.code, detail=response.detail)

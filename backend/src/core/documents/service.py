@@ -267,7 +267,7 @@ class DocumentService(Protocol):
     async def get_shared_users(
         self,
         document_id: UUID4,
-        user_id: UUID4 | None = None,
+        current_user: User | None = None,
     ) -> list[ShareDocument] | Error: ...
 
     async def delete_share_document(
@@ -1286,9 +1286,19 @@ class DocumentServiceImpl(DocumentService):
     async def get_shared_users(
         self,
         document_id: UUID4,
-        user_id: UUID4 | None = None,
+        current_user: User | None = None,
     ) -> list[ShareDocument] | Error:
         logger.info("Fetching shared users for document (document_id=%s)", document_id)
+
+        user_id: UUID4 | None = None
+        if current_user is not None:
+            result = await _permission_checker(
+                current_user, "documents.share", "documents.share_my"
+            )
+            if isinstance(result, Error):
+                return result
+            can_share_all = result is None or "documents.share" in result
+            user_id = None if can_share_all else current_user.id
 
         async with self._unit_of_work as uow:
             # Verify document exists
