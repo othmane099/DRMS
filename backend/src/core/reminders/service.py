@@ -287,9 +287,7 @@ class ReminderServiceImpl(ReminderService):
             current_user.id,
         )
 
-        result = await _permission_checker(
-            current_user, "reminders.create"
-        )
+        result = await _permission_checker(current_user, "reminders.create")
         if isinstance(result, Error):
             return result
         can_create_all = result is None or "reminders.create" in result
