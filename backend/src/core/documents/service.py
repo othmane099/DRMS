@@ -557,10 +557,10 @@ class DocumentServiceImpl(DocumentService):
                     detail="Document not found", code=status.HTTP_404_NOT_FOUND
                 )
 
-            # Only the document creator can update the document
-            if existing_document.created_by != current_user_id:
+            if existing_document.created_by != current_user_id and existing_document.assigned_to != current_user_id:
                 logger.warning(
-                    "Document update rejected: user is not the creator (id=%s, user=%s, creator=%s)",
+                    "Document update rejected: user is neither the creator nor the "
+                    "assigned_to (id=%s, user=%s, creator=%s)",
                     document_id,
                     current_user_id,
                     existing_document.created_by,
