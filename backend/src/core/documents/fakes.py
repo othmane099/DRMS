@@ -1101,13 +1101,10 @@ class FakeDocumentService(DocumentService):
     async def get_shared_users(
         self,
         document_id: UUID4,
-        user_id: UUID4 | None = None,
+        current_user=None,
     ) -> list[ShareDocument] | Error:
         document = self.documents.get(document_id)
-        if not document or (
-            user_id
-            and (document.created_by != user_id or document.assigned_to != user_id)
-        ):
+        if not document:
             return Error(detail="Document not found", code=status.HTTP_404_NOT_FOUND)
 
         # Get shares for the document and sort by created_at descending
