@@ -250,8 +250,7 @@ class DocumentService(Protocol):
         self,
         document_id: UUID4,
         comment_create: DocumentCommentCreate,
-        current_user_id: UUID4,
-        user_id: UUID4 | None = None,
+        current_user: User,
     ) -> DocumentComment | Error: ...
 
     async def get_document_comments(
@@ -1089,10 +1088,17 @@ class DocumentServiceImpl(DocumentService):
         self,
         document_id: UUID4,
         comment_create: DocumentCommentCreate,
-        current_user_id: UUID4,
-        user_id: UUID4 | None = None,
+        current_user: User,
     ) -> DocumentComment | Error:
         logger.info("Creating comment for document (document_id=%s)", document_id)
+
+        result = await _permission_checker(
+            current_user, "comments.create", "comments.create_my"
+        )
+        if isinstance(result, Error):
+            return result
+        can_create_all = result is None or "comments.create" in result
+        user_id = None if can_create_all else current_user.id
 
         async with self._unit_of_work as uow:
             # Verify document exists
@@ -1108,7 +1114,7 @@ class DocumentServiceImpl(DocumentService):
             # Create comment
             comment = await uow.document_repository.create_comment(
                 document_id=document_id,
-                user_id=current_user_id,
+                user_id=current_user.id,
                 comment=comment_create.comment,
             )
 
@@ -1118,7 +1124,7 @@ class DocumentServiceImpl(DocumentService):
                 document_id=document.id,
                 action="Comment Create",
                 description=description,
-                created_by=current_user_id,
+                created_by=current_user.id,
             )
 
             await uow.commit()
