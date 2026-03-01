@@ -15,18 +15,23 @@ interface RemindersListProps {
   description: string;
   permissions: {
     list: string;
+      listMy?: string;
     view: string;
+    viewMy?: string;
     delete: string;
+    deleteMy?: string;
     create: string;
+    createMy?: string;
     update: string;
+    updateMy?: string;
   };
   apiFunctions: {
-    getReminders: typeof api.getReminders | typeof api.getMyReminders;
-    getReminder: typeof api.getReminder | typeof api.getMyReminder;
-    deleteReminder: typeof api.deleteReminder | typeof api.deleteMyReminder;
-    updateReminder: typeof api.updateReminder | typeof api.updateMyReminder;
-    createDocumentReminder: typeof api.createDocumentReminder | typeof api.createMyDocumentReminder;
-    getDocuments: typeof api.getDocuments | typeof api.getMyDocuments;
+    getReminders: typeof api.getReminders;
+    getReminder: typeof api.getReminder;
+    deleteReminder: typeof api.deleteReminder;
+    updateReminder: typeof api.updateReminder;
+    createDocumentReminder: typeof api.createDocumentReminder;
+    getDocuments: typeof api.getDocuments;
   };
 }
 
@@ -84,11 +89,11 @@ export function RemindersList({ title, description, permissions, apiFunctions }:
   });
 
   // Check permissions
-  const canViewReminders = hasAnyPermission([permissions.list]);
-  const canViewReminderDetail = hasAnyPermission([permissions.view]);
-  const canDeleteReminder = hasAnyPermission([permissions.delete]);
-  const canCreateReminder = hasAnyPermission([permissions.create]);
-  const canEditReminder = hasAnyPermission([permissions.update]);
+  const canViewReminders = hasAnyPermission([permissions.list, permissions.listMy].filter(Boolean) as string[]);
+  const canViewReminderDetail = hasAnyPermission([permissions.view, permissions.viewMy].filter(Boolean) as string[]);
+  const canDeleteReminder = hasAnyPermission([permissions.delete, permissions.deleteMy].filter(Boolean) as string[]);
+  const canCreateReminder = hasAnyPermission([permissions.create, permissions.createMy].filter(Boolean) as string[]);
+  const canEditReminder = hasAnyPermission([permissions.update, permissions.updateMy].filter(Boolean) as string[]);
 
   // Helper function to check if current user is the creator of a reminder
   const isReminderCreator = (reminder: DocumentReminder) => {

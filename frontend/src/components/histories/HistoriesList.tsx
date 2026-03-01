@@ -17,10 +17,11 @@ interface HistoriesListProps {
   title: string;
   description: string;
   permission: string;
-  getHistories: typeof api.getDocumentHistories | typeof api.getMyDocumentHistories;
+  permissionMy?: string;
+  getHistories: typeof api.getDocumentHistories;
 }
 
-export function HistoriesList({ title, description, permission, getHistories }: HistoriesListProps) {
+export function HistoriesList({ title, description, permission, permissionMy, getHistories }: HistoriesListProps) {
   const { hasAnyPermission } = usePermissions();
   const [histories, setHistories] = useState<PaginatedDocumentHistoryResponse | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -44,7 +45,7 @@ export function HistoriesList({ title, description, permission, getHistories }: 
   const pageSize = 20;
 
   // Check if user has permission to view document histories
-  const canViewHistories = hasAnyPermission([permission]);
+  const canViewHistories = hasAnyPermission([permission, permissionMy].filter(Boolean) as string[]);
 
   const fetchHistories = useCallback(async () => {
     // Check permission before fetching
