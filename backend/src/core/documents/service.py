@@ -274,8 +274,7 @@ class DocumentService(Protocol):
         self,
         document_id: UUID4,
         share_id: UUID4,
-        current_user_id: UUID4,
-        user_id: UUID4 | None = None,
+        current_user: User,
     ) -> Message | Error: ...
 
     async def generate_share_link(
@@ -1325,15 +1324,22 @@ class DocumentServiceImpl(DocumentService):
         self,
         document_id: UUID4,
         share_id: UUID4,
-        current_user_id: UUID,
-        user_id: UUID4 | None = None,
+        current_user: User,
     ) -> Message | Error:
         logger.info("Deleting share document (share_id=%s)", share_id)
+
+        result = await _permission_checker(
+            current_user, "documents.share", "documents.share_my"
+        )
+        if isinstance(result, Error):
+            return result
+        can_share_all = result is None or "documents.share" in result
+        scope_user_id = None if can_share_all else current_user.id
 
         async with self._unit_of_work as uow:
             # Verify document exists
             document = await uow.document_repository.get_document_by_id(
-                document_id, user_id=user_id
+                document_id, user_id=scope_user_id
             )
             if not document:
                 logger.warning("Document not found (id=%s)", document_id)
@@ -1342,11 +1348,11 @@ class DocumentServiceImpl(DocumentService):
                 )
 
             # Only the document creator can manage shares
-            if document.created_by != current_user_id:
+            if document.created_by != current_user.id:
                 logger.warning(
                     "Share deletion rejected: user is not the creator (id=%s, user=%s, creator=%s)",
                     document_id,
-                    current_user_id,
+                    current_user.id,
                     document.created_by,
                 )
                 return Error(
@@ -1383,7 +1389,7 @@ class DocumentServiceImpl(DocumentService):
                 document_id=document.id,
                 action="Share Document Delete",
                 description=description,
-                created_by=current_user_id,
+                created_by=current_user.id,
             )
 
             await uow.commit()

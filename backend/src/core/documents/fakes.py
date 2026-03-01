@@ -1119,19 +1119,15 @@ class FakeDocumentService(DocumentService):
         self,
         document_id: UUID4,
         share_id: UUID4,
-        current_user_id: UUID4,
-        user_id: UUID4 | None = None,
+        current_user,
     ) -> Message | Error:
         # Check if document exists
         document = self.documents.get(document_id)
-        if not document or (
-            user_id
-            and (document.created_by != user_id or document.assigned_to != user_id)
-        ):
+        if not document:
             return Error(detail="Document not found", code=status.HTTP_404_NOT_FOUND)
 
         # Only the document creator can manage shares
-        if document.created_by != current_user_id:
+        if document.created_by != current_user.id:
             return Error(
                 detail="Only the document creator can manage document shares",
                 code=status.HTTP_403_FORBIDDEN,
