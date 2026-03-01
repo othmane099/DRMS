@@ -64,6 +64,10 @@ class ReminderRepository(Protocol):
         user_id: UUID4 | None = None,
     ) -> list[Reminder]: ...
 
+    async def get_document_reminders_assigned_to_user(
+        self, document_id: UUID4, user_id: UUID4
+    ) -> list[Reminder]: ...
+
     async def delete_reminder(self, reminder_id: UUID4) -> None: ...
 
 
@@ -255,6 +259,20 @@ class ReminderRepositoryImpl(ReminderRepository):
                 )
             )
         query = query.order_by(Reminder.date, Reminder.time)
+        result = await self.session.execute(query)
+        return list(result.scalars().all())
+
+    async def get_document_reminders_assigned_to_user(
+        self, document_id: UUID4, user_id: UUID4
+    ) -> list[Reminder]:
+        query = (
+            select(Reminder)
+            .where(
+                Reminder.document_id == document_id,
+                Reminder.assigned_users.any(User.id == user_id),
+            )
+            .options(selectinload(Reminder.assigned_users))
+        )
         result = await self.session.execute(query)
         return list(result.scalars().all())
 

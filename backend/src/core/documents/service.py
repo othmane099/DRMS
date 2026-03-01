@@ -563,7 +563,10 @@ class DocumentServiceImpl(DocumentService):
                     detail="Document not found", code=status.HTTP_404_NOT_FOUND
                 )
 
-            if existing_document.created_by != current_user_id and existing_document.assigned_to != current_user_id:
+            if (
+                existing_document.created_by != current_user_id
+                and existing_document.assigned_to != current_user_id
+            ):
                 logger.warning(
                     "Document update rejected: user is neither the creator nor the "
                     "assigned_to (id=%s, user=%s, creator=%s)",
@@ -651,10 +654,14 @@ class DocumentServiceImpl(DocumentService):
 
             changed_fields = []
             if existing_document.name != document_update.name:
-                changed_fields.append(f"name: '{existing_document.name}' → '{document_update.name}'")
+                changed_fields.append(
+                    f"name: '{existing_document.name}' → '{document_update.name}'"
+                )
             if str(existing_document.category_id) != str(document_update.category_id):
                 changed_fields.append("category")
-            if str(existing_document.subcategory_id) != str(document_update.subcategory_id):
+            if str(existing_document.subcategory_id) != str(
+                document_update.subcategory_id
+            ):
                 changed_fields.append("subcategory")
             if str(existing_document.stage_id) != str(document_update.stage_id):
                 changed_fields.append("stage")
@@ -671,8 +678,12 @@ class DocumentServiceImpl(DocumentService):
                 document_id, document_update
             )
 
-            fields_summary = ", ".join(changed_fields) if changed_fields else "no changes"
-            description = f"Document '{document.name}' updated — changed: {fields_summary}"
+            fields_summary = (
+                ", ".join(changed_fields) if changed_fields else "no changes"
+            )
+            description = (
+                f"Document '{document.name}' updated — changed: {fields_summary}"
+            )
             await uow.history_repository.create_document_history(
                 document_id=document.id,
                 action="Document Update",
@@ -1392,12 +1403,12 @@ class DocumentServiceImpl(DocumentService):
         logger.info("Deleting share document (share_id=%s)", share_id)
 
         result = await _permission_checker(
-            current_user, "documents.share", "documents.share_my"
+            current_user, "documents.delete_share", "documents.delete_share_my"
         )
         if isinstance(result, Error):
             return result
-        can_share_all = result is None or "documents.share" in result
-        scope_user_id = None if can_share_all else current_user.id
+        can_delete_all = result is None or "documents.delete_share" in result
+        scope_user_id = None if can_delete_all else current_user.id
 
         async with self._unit_of_work as uow:
             # Verify document exists
@@ -1410,7 +1421,7 @@ class DocumentServiceImpl(DocumentService):
                     detail="Document not found", code=status.HTTP_404_NOT_FOUND
                 )
 
-            # Only the document creator can manage shares
+            # Only the document creator can revoke shares
             if document.created_by != current_user.id:
                 logger.warning(
                     "Share deletion rejected: user is not the creator (id=%s, user=%s, creator=%s)",
@@ -1441,7 +1452,21 @@ class DocumentServiceImpl(DocumentService):
                 )
 
             # Delete the share
+            revoked_user_id = share.user_id
             await uow.document_repository.delete_share_document(share_id)
+
+            # Cascade: remove revoked user from all reminder assigned_users for this document
+            reminders = (
+                await uow.reminder_repository.get_document_reminders_assigned_to_user(
+                    document_id, revoked_user_id
+                )
+            )
+            for reminder in reminders:
+                reminder.assigned_users = [
+                    u for u in reminder.assigned_users if u.id != revoked_user_id
+                ]
+                if not reminder.assigned_users:
+                    await uow.reminder_repository.delete_reminder(reminder.id)
 
             # Create document history entry
             user_name = f"{share.user.first_name} {share.user.last_name}"
