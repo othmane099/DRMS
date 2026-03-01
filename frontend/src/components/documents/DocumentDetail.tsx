@@ -20,20 +20,43 @@ interface DocumentDetailProps {
   backPath: string;
   permissions: {
     view: string;
+    viewMy?: string;
     edit: string;
+    editMy?: string;
     viewVersion: string;
+    viewVersionMy?: string;
     createVersion: string;
+    createVersionMy?: string;
     viewComments: string;
+    viewCommentsMy?: string;
     createComment: string;
+    createCommentMy?: string;
     share: string;
+    shareMy?: string;
     viewShared: string;
+    viewSharedMy?: string;
     deleteShare: string;
+    deleteShareMy?: string;
     viewReminders: string;
+    viewRemindersMy?: string;
     createReminder: string;
+    createReminderMy?: string;
     viewReminderDetail: string;
+    viewReminderDetailMy?: string;
     updateReminder: string;
+    updateReminderMy?: string;
     deleteReminder: string;
+    deleteReminderMy?: string;
+    preview?: string;
+    previewMy?: string;
+    previewVersion?: string;
+    previewVersionMy?: string;
+    download?: string;
+    downloadMy?: string;
+    downloadVersion?: string;
+    downloadVersionMy?: string;
     chat?: string;
+    chatMy?: string;
   };
   apiFunctions: {
     getDocument: (id: string) => Promise<Document>;
@@ -135,24 +158,33 @@ export function DocumentDetail({
   });
 
   // Check permissions
-  const canViewDocuments = hasAnyPermission([permissions.view]);
-  const canViewVersions = hasAnyPermission([permissions.viewVersion]);
-  const canCreateVersion = hasAnyPermission([permissions.createVersion]);
-  const canChat = permissions.chat ? hasAnyPermission([permissions.chat]) : false;
-  const canViewComments = hasAnyPermission([permissions.viewComments]);
-  const canCreateComment = hasAnyPermission([permissions.createComment]);
-  const canShareDocument = hasAnyPermission([permissions.share]);
-  const canViewSharedUsers = hasAnyPermission([permissions.viewShared]);
-  const canDeleteShare = hasAnyPermission([permissions.deleteShare]);
-  const canViewReminders = hasAnyPermission([permissions.viewReminders]);
-  const canCreateReminder = hasAnyPermission([permissions.createReminder]);
-  const canViewReminderDetail = hasAnyPermission([permissions.viewReminderDetail]);
-  const canUpdateReminder = hasAnyPermission([permissions.updateReminder]);
-  const canDeleteReminder = hasAnyPermission([permissions.deleteReminder]);
+  const canViewDocuments = hasAnyPermission([permissions.view, permissions.viewMy].filter(Boolean) as string[]);
+  const canViewVersions = hasAnyPermission([permissions.viewVersion, permissions.viewVersionMy].filter(Boolean) as string[]);
+  const canCreateVersion = hasAnyPermission([permissions.createVersion, permissions.createVersionMy].filter(Boolean) as string[]);
+  const canEdit = hasAnyPermission([permissions.edit, permissions.editMy].filter(Boolean) as string[]);
+  const canPreview = hasAnyPermission([permissions.preview, permissions.previewMy].filter(Boolean) as string[]);
+  const canPreviewVersion = hasAnyPermission([permissions.previewVersion, permissions.previewVersionMy].filter(Boolean) as string[]);
+  const canDownload = hasAnyPermission([permissions.download, permissions.downloadMy].filter(Boolean) as string[]);
+  const canDownloadVersion = hasAnyPermission([permissions.downloadVersion, permissions.downloadVersionMy].filter(Boolean) as string[]);
+  const canChat = hasAnyPermission([permissions.chat, permissions.chatMy].filter(Boolean) as string[]);
+  const canViewComments = hasAnyPermission([permissions.viewComments, permissions.viewCommentsMy].filter(Boolean) as string[]);
+  const canCreateComment = hasAnyPermission([permissions.createComment, permissions.createCommentMy].filter(Boolean) as string[]);
+  const canShareDocument = hasAnyPermission([permissions.share, permissions.shareMy].filter(Boolean) as string[]);
+  const canViewSharedUsers = hasAnyPermission([permissions.viewShared, permissions.viewSharedMy].filter(Boolean) as string[]);
+  const canDeleteShare = hasAnyPermission([permissions.deleteShare, permissions.deleteShareMy].filter(Boolean) as string[]);
+  const canViewReminders = hasAnyPermission([permissions.viewReminders, permissions.viewRemindersMy].filter(Boolean) as string[]);
+  const canCreateReminder = hasAnyPermission([permissions.createReminder, permissions.createReminderMy].filter(Boolean) as string[]);
+  const canViewReminderDetail = hasAnyPermission([permissions.viewReminderDetail, permissions.viewReminderDetailMy].filter(Boolean) as string[]);
+  const canUpdateReminder = hasAnyPermission([permissions.updateReminder, permissions.updateReminderMy].filter(Boolean) as string[]);
+  const canDeleteReminder = hasAnyPermission([permissions.deleteReminder, permissions.deleteReminderMy].filter(Boolean) as string[]);
 
   // Helper function to check if current user is the owner of the document
   const isDocumentOwner = (doc: Document | null) => {
     return doc && user && doc.created_by === user.id;
+  };
+
+  const isDocumentAssignee = (doc: Document | null) => {
+    return doc && user && doc.assigned_to === user.id;
   };
 
   // Helper function to check if current user is the creator of a reminder
@@ -558,7 +590,7 @@ export function DocumentDetail({
           <p className="text-gray-500 ml-14">View and manage document details</p>
         </div>
         <div className="flex gap-2">
-          <CanAccess permission={permissions.view}>
+          {canPreview && (
             <Button
               variant="secondary"
               onClick={() => {
@@ -585,8 +617,8 @@ export function DocumentDetail({
               </svg>
               Preview
             </Button>
-          </CanAccess>
-          <CanAccess permission={permissions.view}>
+          )}
+          {canDownload && (
             <Button
               variant="secondary"
               onClick={async () => {
@@ -603,16 +635,14 @@ export function DocumentDetail({
               </svg>
               Download
             </Button>
-          </CanAccess>
-          {isDocumentOwner(document) && (
-            <CanAccess permission={permissions.edit}>
-              <Button onClick={() => setShowEditModal(true)}>
-                <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                </svg>
-                Edit Document
-              </Button>
-            </CanAccess>
+          )}
+          {(isDocumentOwner(document) || isDocumentAssignee(document)) && canEdit && (
+            <Button onClick={() => setShowEditModal(true)}>
+              <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+              </svg>
+              Edit Document
+            </Button>
           )}
         </div>
       </div>
@@ -720,7 +750,7 @@ export function DocumentDetail({
             <Card>
               <div className="flex items-center justify-between mb-6">
                 <CardHeader title="Version History" />
-                {canCreateVersion && (
+                {isDocumentOwner(document) && canCreateVersion && (
                   <div>
                     <input
                       ref={fileInputRef}
@@ -805,48 +835,52 @@ export function DocumentDetail({
                                   </svg>
                                 </button>
                               )}
-                              <button
-                                onClick={() => {
-                                  const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
-                                  const token = localStorage.getItem('token');
-                                  const url = `${API_BASE_URL}/api/v1/documents/${documentId}/versions/${version.id}/preview${previewUrlSuffix}`;
+                              {canPreviewVersion && (
+                                <button
+                                  onClick={() => {
+                                    const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+                                    const token = localStorage.getItem('token');
+                                    const url = `${API_BASE_URL}/api/v1/documents/${documentId}/versions/${version.id}/preview${previewUrlSuffix}`;
 
-                                  if (token) {
-                                    fetch(url, { headers: { 'X-Session-Key': token } })
-                                      .then(response => response.blob())
-                                      .then(blob => {
-                                        const blobUrl = window.URL.createObjectURL(blob);
-                                        window.open(blobUrl, '_blank');
-                                      })
-                                      .catch(() => showToast('Failed to preview version', 'error'));
-                                  } else {
-                                    showToast('Authentication required', 'error');
-                                  }
-                                }}
-                                className="text-blue-600 hover:text-blue-800 transition-colors"
-                                title="Preview this version"
-                              >
-                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                                </svg>
-                              </button>
-                              <button
-                                onClick={async () => {
-                                  try {
-                                    await apiFunctions.downloadVersion(documentId, version.id);
-                                  } catch (err) {
-                                    const error = err as Error;
-                                    showToast(error.message || 'Failed to download version', 'error');
-                                  }
-                                }}
-                                className="text-blue-600 hover:text-blue-800 transition-colors"
-                                title="Download this version"
-                              >
-                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-                                </svg>
-                              </button>
+                                    if (token) {
+                                      fetch(url, { headers: { 'X-Session-Key': token } })
+                                        .then(response => response.blob())
+                                        .then(blob => {
+                                          const blobUrl = window.URL.createObjectURL(blob);
+                                          window.open(blobUrl, '_blank');
+                                        })
+                                        .catch(() => showToast('Failed to preview version', 'error'));
+                                    } else {
+                                      showToast('Authentication required', 'error');
+                                    }
+                                  }}
+                                  className="text-blue-600 hover:text-blue-800 transition-colors"
+                                  title="Preview this version"
+                                >
+                                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                                  </svg>
+                                </button>
+                              )}
+                              {canDownloadVersion && (
+                                <button
+                                  onClick={async () => {
+                                    try {
+                                      await apiFunctions.downloadVersion(documentId, version.id);
+                                    } catch (err) {
+                                      const error = err as Error;
+                                      showToast(error.message || 'Failed to download version', 'error');
+                                    }
+                                  }}
+                                  className="text-blue-600 hover:text-blue-800 transition-colors"
+                                  title="Download this version"
+                                >
+                                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                                  </svg>
+                                </button>
+                              )}
                               {canChat && apiFunctions.chatWithVersion && (
                                 <button
                                   onClick={() => {
@@ -950,7 +984,7 @@ export function DocumentDetail({
             <Card>
               <div className="flex items-center justify-between mb-6">
                 <CardHeader title="Shared Users" />
-                {canShareDocument && (
+                {isDocumentOwner(document) && canShareDocument && (
                   <Button
                     onClick={() => {
                       setShowShareModal(true);
