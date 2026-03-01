@@ -1022,8 +1022,7 @@ class FakeDocumentService(DocumentService):
         self,
         document_id: UUID4,
         share_data: ShareDocumentCreate,
-        current_user_id: UUID4,
-        user_id: UUID4 | None = None,
+        current_user,
     ) -> list[ShareDocument] | Error:
         from auth.models import User
 
@@ -1041,14 +1040,11 @@ class FakeDocumentService(DocumentService):
 
         # Check if document exists
         document = self.documents.get(document_id)
-        if not document or (
-            user_id
-            and (document.created_by != user_id or document.assigned_to != user_id)
-        ):
+        if not document:
             return Error(detail="Document not found", code=status.HTTP_404_NOT_FOUND)
 
         # Only the document creator can share the document
-        if document.created_by != current_user_id:
+        if document.created_by != current_user.id:
             return Error(
                 detail="Only the document creator can share the document",
                 code=status.HTTP_403_FORBIDDEN,
@@ -1068,11 +1064,11 @@ class FakeDocumentService(DocumentService):
 
         # Share with each user
         shared_list = []
-        for user_id in share_data.user_ids:
+        for share_user_id in share_data.user_ids:
             # Check if already shared with this user
             existing_share = None
             for share in self.shares.values():
-                if share.document_id == document_id and share.user_id == user_id:
+                if share.document_id == document_id and share.user_id == share_user_id:
                     existing_share = share
                     break
 
@@ -1083,14 +1079,14 @@ class FakeDocumentService(DocumentService):
             share = ShareDocument(
                 id=uuid4(),
                 document_id=document_id,
-                user_id=user_id,
+                user_id=share_user_id,
                 start_date=start_date,
                 end_date=end_date,
                 created_at=datetime.now(),
             )
             # Populate relationship with mock User
             share.user = User(
-                id=user_id,
+                id=share_user_id,
                 first_name="Mock",
                 last_name="User",
                 username="mockuser",
