@@ -21,7 +21,7 @@ MANAGER_PERMS = [
     "documents.delete_my", "documents.archive_my", "documents.download_my", "documents.share_my",
     "documents.view_version_my", "documents.create_version_my", "documents.history_my",
     "reminders.list", "reminders.view", "reminders.create", "reminders.update", "reminders.delete",
-    "reminders.list_my", "reminders.view_my", "reminders.create_my", "reminders.update_my",
+    "reminders.list_my", "reminders.view_my", "reminders.update_my",
     "reminders.delete_my",
     "comments.list", "comments.create", "comments.list_my", "comments.create_my",
 ]
@@ -36,7 +36,7 @@ EMPLOYEE_PERMS = [
     "documents.list_my", "documents.view_my", "documents.update_my",
     "documents.delete_my", "documents.archive_my", "documents.download_my", "documents.share_my",
     "documents.create_version_my",
-    "reminders.create_my", "reminders.list_my", "reminders.view_my",
+    "reminders.list_my", "reminders.view_my",
     "reminders.update_my", "reminders.delete_my",
 ]
 
