@@ -6,6 +6,8 @@ from dependency_injector.wiring import Provide, inject
 from pydantic import UUID4
 from starlette import status
 
+from auth.models import User
+from core.documents.service import _permission_checker
 from core.models import Reminder
 from core.reminders.schemas import (
     PaginatedReminderResponse,
@@ -37,14 +39,13 @@ class ReminderService(Protocol):
         self,
         document_id: UUID4,
         reminder_create: ReminderCreate,
-        current_user_id: UUID4,
-        user_id: UUID4 | None = None,
+        current_user: User,
     ) -> Reminder | Error: ...
 
     async def get_reminders_by_document(
         self,
         document_id: UUID4,
-        user_id: UUID4 | None = None,
+        current_user: User | None = None,
     ) -> list[Reminder] | Error: ...
 
     async def update_reminder(
@@ -244,20 +245,27 @@ class ReminderServiceImpl(ReminderService):
         self,
         document_id: UUID4,
         reminder_create: ReminderCreate,
-        current_user_id: UUID4,
-        user_id: UUID4 | None = None,
+        current_user: User,
     ) -> Reminder | Error:
         """Create a reminder for a document"""
         logger.info(
             "Creating reminder (document_id=%s, user_id=%s)",
             document_id,
-            current_user_id,
+            current_user.id,
         )
+
+        result = await _permission_checker(
+            current_user, "reminders.create", "reminders.create_my"
+        )
+        if isinstance(result, Error):
+            return result
+        can_create_all = result is None or "reminders.create" in result
+        scope_user_id = None if can_create_all else current_user.id
 
         async with self._unit_of_work as uow:
             # Verify document exists
             document = await uow.document_repository.get_document_by_id(
-                document_id, user_id=user_id
+                document_id, user_id=scope_user_id
             )
             if not document:
                 logger.warning("Document not found (id=%s)", document_id)
@@ -293,15 +301,15 @@ class ReminderServiceImpl(ReminderService):
                 )
 
             # Verify all assigned users exist
-            for user_id in reminder_create.assign_user:
-                user = await uow.user_repository.get_user_by_id(user_id)
+            for assign_user_id in reminder_create.assign_user:
+                user = await uow.user_repository.get_user_by_id(assign_user_id)
                 if not user:
                     logger.warning(
                         "Reminder creation rejected: assigned user not found (user_id=%s)",
-                        user_id,
+                        assign_user_id,
                     )
                     return Error(
-                        detail=f"User not found: {user_id}",
+                        detail=f"User not found: {assign_user_id}",
                         code=status.HTTP_404_NOT_FOUND,
                     )
 
@@ -313,7 +321,7 @@ class ReminderServiceImpl(ReminderService):
                 subject=reminder_create.subject,
                 message=reminder_create.message,
                 assign_user_ids=reminder_create.assign_user,
-                created_by=current_user_id,
+                created_by=current_user.id,
             )
 
             # Log document history
@@ -321,7 +329,7 @@ class ReminderServiceImpl(ReminderService):
                 document_id=document_id,
                 action="Create reminder",
                 description=f"Create reminder for {document.name}",
-                created_by=current_user_id,
+                created_by=current_user.id,
             )
 
             await uow.commit()
@@ -332,10 +340,20 @@ class ReminderServiceImpl(ReminderService):
     async def get_reminders_by_document(
         self,
         document_id: UUID4,
-        user_id: UUID4 | None = None,
+        current_user: User | None = None,
     ) -> list[Reminder] | Error:
         """Get all reminders for a document"""
         logger.info("Fetching reminders (document_id=%s)", document_id)
+
+        user_id: UUID4 | None = None
+        if current_user is not None:
+            result = await _permission_checker(
+                current_user, "reminders.list", "reminders.list_my"
+            )
+            if isinstance(result, Error):
+                return result
+            can_list_all = result is None or "reminders.list" in result
+            user_id = None if can_list_all else current_user.id
 
         async with self._unit_of_work as uow:
             # Verify document exists

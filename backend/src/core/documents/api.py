@@ -15,7 +15,7 @@ from fastapi import (
 from fastapi.responses import FileResponse
 from pydantic import UUID4
 
-from auth.dependencies import CurrentUser, require_permission
+from auth.dependencies import CurrentUser
 from core.documents.schemas import (
     DocumentChatRequest,
     DocumentChatResponse,
@@ -512,36 +512,9 @@ async def delete_share_document(
 
 
 @router.post(
-    "/documents/{document_id}/share-link/me",
-    response_model=ShareLinkResponse,
-    dependencies=[Depends(require_permission("documents.share_my"))],
-    description="Required permission: documents.share_my",
-)
-@inject
-async def generate_my_share_link(
-    document_id: UUID4,
-    current_user: CurrentUser,
-    share_link_create: ShareLinkCreate,
-    document_service: DocumentService = Depends(Provide["document_service"]),
-) -> ShareLinkResponse:
-    response = await document_service.generate_share_link(
-        document_id=document_id,
-        share_link_create=share_link_create,
-        current_user_id=current_user.id,
-        user_id=current_user.id,
-    )
-
-    if isinstance(response, Error):
-        raise HTTPException(status_code=response.code, detail=response.detail)
-
-    return ShareLinkResponse(token=response)
-
-
-@router.post(
     "/documents/{document_id}/share-link",
     response_model=ShareLinkResponse,
-    dependencies=[Depends(require_permission("documents.share"))],
-    description="Required permission: documents.share",
+    description="Required permission: documents.share | documents.share_my",
 )
 @inject
 async def generate_share_link(
@@ -553,7 +526,7 @@ async def generate_share_link(
     response = await document_service.generate_share_link(
         document_id=document_id,
         share_link_create=share_link_create,
-        current_user_id=current_user.id,
+        current_user=current_user,
     )
 
     if isinstance(response, Error):
@@ -603,38 +576,10 @@ async def preview_shared_document(
 
 
 @router.post(
-    "/documents/{document_id}/reminders/me",
-    response_model=ReminderResponse,
-    dependencies=[Depends(require_permission("reminders.create_my"))],
-    status_code=201,
-    description="Required permission: reminders.create_my",
-)
-@inject
-async def create_my_reminder(
-    document_id: UUID4,
-    reminder_create: ReminderCreate,
-    current_user: CurrentUser,
-    reminder_service: ReminderService = Depends(Provide["reminder_service"]),
-) -> ReminderResponse:
-    result = await reminder_service.create_reminder(
-        document_id=document_id,
-        reminder_create=reminder_create,
-        current_user_id=current_user.id,
-        user_id=current_user.id,
-    )
-
-    if isinstance(result, Error):
-        raise HTTPException(status_code=result.code, detail=result.detail)
-
-    return ReminderResponse.model_validate(result)
-
-
-@router.post(
     "/documents/{document_id}/reminders",
     response_model=ReminderResponse,
-    dependencies=[Depends(require_permission("reminders.create"))],
     status_code=201,
-    description="Required permission: reminders.create",
+    description="Required permission: reminders.create | reminders.create_my",
 )
 @inject
 async def create_reminder(
@@ -646,7 +591,7 @@ async def create_reminder(
     result = await reminder_service.create_reminder(
         document_id=document_id,
         reminder_create=reminder_create,
-        current_user_id=current_user.id,
+        current_user=current_user,
     )
 
     if isinstance(result, Error):
@@ -656,39 +601,19 @@ async def create_reminder(
 
 
 @router.get(
-    "/documents/{document_id}/reminders/me",
+    "/documents/{document_id}/reminders",
     response_model=list[ReminderResponse],
-    dependencies=[Depends(require_permission("reminders.list_my"))],
-    description="Required permission: reminders.list_my",
+    description="Required permission: reminders.list | reminders.list_my",
 )
 @inject
-async def get_my_document_reminders(
+async def get_document_reminders(
     document_id: UUID4,
     current_user: CurrentUser,
     reminder_service: ReminderService = Depends(Provide["reminder_service"]),
 ) -> list[ReminderResponse]:
     result = await reminder_service.get_reminders_by_document(
-        document_id=document_id, user_id=current_user.id
+        document_id=document_id, current_user=current_user
     )
-
-    if isinstance(result, Error):
-        raise HTTPException(status_code=result.code, detail=result.detail)
-
-    return [ReminderResponse.model_validate(reminder) for reminder in result]
-
-
-@router.get(
-    "/documents/{document_id}/reminders",
-    response_model=list[ReminderResponse],
-    dependencies=[Depends(require_permission("reminders.list"))],
-    description="Required permission: reminders.list",
-)
-@inject
-async def get_document_reminders(
-    document_id: UUID4,
-    reminder_service: ReminderService = Depends(Provide["reminder_service"]),
-) -> list[ReminderResponse]:
-    result = await reminder_service.get_reminders_by_document(document_id=document_id)
 
     if isinstance(result, Error):
         raise HTTPException(status_code=result.code, detail=result.detail)
@@ -699,79 +624,37 @@ async def get_document_reminders(
 @router.post(
     "/documents/search",
     response_model=DocumentSearchResponse,
-    dependencies=[Depends(require_permission("documents.search"))],
-    description="Required permission: documents.search",
+    description="Required permission: documents.search | documents.search_my",
 )
 @inject
 async def search_documents(
     request: DocumentSearchRequest,
+    current_user: CurrentUser,
     document_service: DocumentService = Depends(Provide["document_service"]),
 ) -> DocumentSearchResponse:
-    result = await document_service.search_documents(request)
+    result = await document_service.search_documents(request, current_user=current_user)
 
     if isinstance(result, Error):
         raise HTTPException(status_code=result.code or 500, detail=result.detail)
 
     return result
-
-
-@router.post(
-    "/documents/search/me",
-    response_model=DocumentSearchResponse,
-    dependencies=[Depends(require_permission("documents.search_my"))],
-    description="Required permission: documents.search_my",
-)
-@inject
-async def search_my_documents(
-    request: DocumentSearchRequest,
-    current_user: CurrentUser,
-    document_service: DocumentService = Depends(Provide["document_service"]),
-) -> DocumentSearchResponse:
-    result = await document_service.search_documents(request, user_id=current_user.id)
-
-    if isinstance(result, Error):
-        raise HTTPException(status_code=result.code or 500, detail=result.detail)
-
-    return result
-
-
-@router.post(
-    "/documents/{document_id}/versions/{version_id}/chat/me",
-    response_model=DocumentChatResponse,
-    dependencies=[Depends(require_permission("documents.chat_my"))],
-    description="Required permission: documents.chat_my",
-)
-@inject
-async def chat_my_document_version(
-    document_id: UUID4,
-    version_id: UUID4,
-    current_user: CurrentUser,
-    request: DocumentChatRequest,
-    document_service: DocumentService = Depends(Provide["document_service"]),
-) -> DocumentChatResponse:
-    result = await document_service.chat_with_document_version(
-        document_id, version_id, request.message, user_id=current_user.id
-    )
-    if isinstance(result, Error):
-        raise HTTPException(status_code=result.code, detail=result.detail)
-    return DocumentChatResponse(message=result)
 
 
 @router.post(
     "/documents/{document_id}/versions/{version_id}/chat",
     response_model=DocumentChatResponse,
-    dependencies=[Depends(require_permission("documents.chat"))],
-    description="Required permission: documents.chat",
+    description="Required permission: documents.chat | documents.chat_my",
 )
 @inject
 async def chat_document_version(
     document_id: UUID4,
     version_id: UUID4,
+    current_user: CurrentUser,
     request: DocumentChatRequest,
     document_service: DocumentService = Depends(Provide["document_service"]),
 ) -> DocumentChatResponse:
     result = await document_service.chat_with_document_version(
-        document_id, version_id, request.message
+        document_id, version_id, request.message, current_user=current_user
     )
     if isinstance(result, Error):
         raise HTTPException(status_code=result.code, detail=result.detail)
