@@ -967,30 +967,26 @@ class FakeDocumentService(DocumentService):
         self,
         document_id: UUID4,
         comment_create: DocumentCommentCreate,
-        current_user_id: UUID4,
-        user_id: UUID4 | None = None,
+        current_user,
     ) -> DocumentComment | Error:
         from auth.models import User
 
         # Check if document exists
         document = self.documents.get(document_id)
-        if not document or (
-            user_id
-            and (document.created_by != user_id or document.assigned_to != user_id)
-        ):
+        if not document:
             return Error(detail="Document not found", code=status.HTTP_404_NOT_FOUND)
 
         # Create comment
         comment = DocumentComment(
             id=uuid4(),
             document_id=document_id,
-            user_id=current_user_id,
+            user_id=current_user.id,
             comment=comment_create.comment,
             created_at=datetime.now(),
         )
         # Populate relationship with mock User
         comment.user = User(
-            id=current_user_id,
+            id=current_user.id,
             first_name="Mock",
             last_name="User",
             username="mockuser",

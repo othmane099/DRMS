@@ -419,36 +419,9 @@ async def get_document_comments(
 
 
 @router.post(
-    "/documents/{document_id}/comments/me",
-    response_model=DocumentCommentResponse,
-    dependencies=[Depends(require_permission("comments.create_my"))],
-    description="Required permission: comments.create_my",
-)
-@inject
-async def create_my_comment(
-    document_id: UUID4,
-    current_user: CurrentUser,
-    comment_create: DocumentCommentCreate,
-    document_service: DocumentService = Depends(Provide["document_service"]),
-) -> DocumentCommentResponse:
-    response = await document_service.create_comment(
-        document_id=document_id,
-        comment_create=comment_create,
-        current_user_id=current_user.id,
-        user_id=current_user.id,
-    )
-
-    if isinstance(response, Error):
-        raise HTTPException(status_code=response.code, detail=response.detail)
-
-    return DocumentCommentResponse.model_validate(response)
-
-
-@router.post(
     "/documents/{document_id}/comments",
     response_model=DocumentCommentResponse,
-    dependencies=[Depends(require_permission("comments.create"))],
-    description="Required permission: comments.create",
+    description="Required permission: comments.create | comments.create_my",
 )
 @inject
 async def create_comment(
@@ -460,7 +433,7 @@ async def create_comment(
     response = await document_service.create_comment(
         document_id=document_id,
         comment_create=comment_create,
-        current_user_id=current_user.id,
+        current_user=current_user,
     )
 
     if isinstance(response, Error):
