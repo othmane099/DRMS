@@ -383,7 +383,7 @@ export function DocumentDetail({
   const fetchReminderAvailableUsers = async () => {
     setIsLoadingReminderUsers(true);
     try {
-      const response = await api.getUsersForAssignment();
+      const response = await api.getDocumentAssignableUsers(documentId);
       setReminderAvailableUsers(response);
     } catch (err) {
       const apiError = err as ApiError;
@@ -412,7 +412,7 @@ export function DocumentDetail({
     try {
       let users = reminderAvailableUsers;
       if (users.length === 0) {
-        const response = await api.getUsersForAssignment();
+        const response = await api.getDocumentAssignableUsers(documentId);
         users = response;
         setReminderAvailableUsers(users);
       }

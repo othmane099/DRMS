@@ -270,6 +270,12 @@ class DocumentService(Protocol):
         current_user: User | None = None,
     ) -> list[ShareDocument] | Error: ...
 
+    async def get_document_users(
+        self,
+        document_id: UUID4,
+        current_user: User,
+    ) -> list[User] | Error: ...
+
     async def delete_share_document(
         self,
         document_id: UUID4,
@@ -1339,6 +1345,43 @@ class DocumentServiceImpl(DocumentService):
             len(shares),
         )
         return shares
+
+    async def get_document_users(
+        self,
+        document_id: UUID4,
+        current_user: User,
+    ) -> list[User] | Error:
+        logger.info("Fetching document users (document_id=%s)", document_id)
+
+        result = await _permission_checker(current_user, "reminders.create")
+        if isinstance(result, Error):
+            return result
+
+        async with self._unit_of_work as uow:
+            document = await uow.document_repository.get_document_by_id(document_id)
+            if not document:
+                logger.warning("Document not found (id=%s)", document_id)
+                return Error(
+                    detail="Document not found", code=status.HTTP_404_NOT_FOUND
+                )
+
+            shares = await uow.document_repository.get_shared_users(document_id)
+
+            seen_ids: set = {current_user.id}  # exclude the reminder creator
+            users: list[User] = []
+            for user in [document.assigned_user, document.creator] + [
+                s.user for s in shares
+            ]:
+                if user.id not in seen_ids:
+                    seen_ids.add(user.id)
+                    users.append(user)
+
+        logger.info(
+            "Document users fetched successfully (document_id=%s, count=%d)",
+            document_id,
+            len(users),
+        )
+        return users
 
     async def delete_share_document(
         self,

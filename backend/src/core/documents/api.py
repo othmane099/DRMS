@@ -16,6 +16,7 @@ from fastapi.responses import FileResponse
 from pydantic import UUID4
 
 from auth.dependencies import CurrentUser
+from auth.users.schemas import UserBasicIdResponse
 from core.documents.schemas import (
     DocumentChatRequest,
     DocumentChatResponse,
@@ -485,6 +486,27 @@ async def get_shared_users(
         raise HTTPException(status_code=response.code, detail=response.detail)
 
     return [ShareDocumentResponse.model_validate(share) for share in response]
+
+
+@router.get(
+    "/documents/{document_id}/assignable-users",
+    response_model=list[UserBasicIdResponse],
+    description="Required permission: reminders.create",
+)
+@inject
+async def get_document_assignable_users(
+    document_id: UUID4,
+    current_user: CurrentUser,
+    document_service: DocumentService = Depends(Provide["document_service"]),
+) -> list[UserBasicIdResponse]:
+    response = await document_service.get_document_users(
+        document_id=document_id, current_user=current_user
+    )
+
+    if isinstance(response, Error):
+        raise HTTPException(status_code=response.code, detail=response.detail)
+
+    return [UserBasicIdResponse.model_validate(user) for user in response]
 
 
 @router.delete(

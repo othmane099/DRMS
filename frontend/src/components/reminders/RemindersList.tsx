@@ -32,6 +32,7 @@ interface RemindersListProps {
     updateReminder: typeof api.updateReminder;
     createDocumentReminder: typeof api.createDocumentReminder;
     getDocuments: typeof api.getDocuments;
+    getDocumentAssignableUsers: typeof api.getDocumentAssignableUsers;
   };
 }
 
@@ -76,6 +77,7 @@ export function RemindersList({ title, description, permissions, apiFunctions }:
   const [documents, setDocuments] = useState<Document[]>([]);
   const [users, setUsers] = useState<UserBasicId[]>([]);
   const [isLoadingDropdowns, setIsLoadingDropdowns] = useState(false);
+  const [isLoadingUsers, setIsLoadingUsers] = useState(false);
 
   // Toast notification state
   const [toast, setToast] = useState<{
@@ -186,17 +188,26 @@ export function RemindersList({ title, description, permissions, apiFunctions }:
   const fetchDropdownData = async () => {
     setIsLoadingDropdowns(true);
     try {
-      const [docsResponse, usersResponse] = await Promise.all([
-        apiFunctions.getDocuments({ page: 1, page_size: 1000, archive: false }),
-        api.getUsersForAssignment(),
-      ]);
+      const docsResponse = await apiFunctions.getDocuments({ page: 1, page_size: 1000, archive: false });
       setDocuments(docsResponse.data);
-      setUsers(usersResponse);
     } catch (err) {
       const apiError = err as ApiError;
       showToast(apiError.detail || 'Failed to load dropdown data', 'error');
     } finally {
       setIsLoadingDropdowns(false);
+    }
+  };
+
+  const fetchDocumentUsers = async (documentId: string) => {
+    setIsLoadingUsers(true);
+    try {
+      const usersResponse = await apiFunctions.getDocumentAssignableUsers(documentId);
+      setUsers(usersResponse);
+    } catch (err) {
+      const apiError = err as ApiError;
+      showToast(apiError.detail || 'Failed to load users for document', 'error');
+    } finally {
+      setIsLoadingUsers(false);
     }
   };
 
@@ -211,6 +222,7 @@ export function RemindersList({ title, description, permissions, apiFunctions }:
       message: '',
       assign_user: [],
     });
+    setUsers([]);
     fetchDropdownData();
     setShowReminderFormModal(true);
   };
@@ -222,15 +234,14 @@ export function RemindersList({ title, description, permissions, apiFunctions }:
     setShowReminderFormModal(true);
 
     try {
-      // Fetch dropdown data first
-      const [docsResponse, usersResponse] = await Promise.all([
+      // Fetch documents and document-related users in parallel with reminder details
+      const [docsResponse, usersResponse, data] = await Promise.all([
         apiFunctions.getDocuments({ page: 1, page_size: 1000, archive: false }),
-        api.getUsersForAssignment(),
+        apiFunctions.getDocumentAssignableUsers(reminder.document_id),
+        apiFunctions.getReminder(reminder.id),
       ]);
       setDocuments(docsResponse.data);
       setUsers(usersResponse);
-
-      const data = await apiFunctions.getReminder(reminder.id);
 
       // Map usernames to user IDs
       const assignedUserIds = data.assigned_users
@@ -259,6 +270,14 @@ export function RemindersList({ title, description, permissions, apiFunctions }:
 
   const handleFormChange = (field: string, value: any) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
+  };
+
+  const handleDocumentChange = (documentId: string) => {
+    setFormData((prev) => ({ ...prev, document_id: documentId, assign_user: [] }));
+    setUsers([]);
+    if (documentId) {
+      fetchDocumentUsers(documentId);
+    }
   };
 
   const handleUserSelection = (userId: string) => {
@@ -740,7 +759,7 @@ export function RemindersList({ title, description, permissions, apiFunctions }:
               ) : (
                 <select
                   value={formData.document_id}
-                  onChange={(e) => handleFormChange('document_id', e.target.value)}
+                  onChange={(e) => handleDocumentChange(e.target.value)}
                   disabled={isEditMode}
                   className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-100 disabled:cursor-not-allowed"
                 >
@@ -813,13 +832,17 @@ export function RemindersList({ title, description, permissions, apiFunctions }:
               <label className="block text-sm font-medium text-gray-700 mb-2">
                 Assign Users <span className="text-red-500">*</span>
               </label>
-              {isLoadingDropdowns ? (
+              {isLoadingUsers ? (
                 <div className="flex justify-center items-center py-8">
                   <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
                 </div>
+              ) : !formData.document_id ? (
+                <div className="border border-gray-300 rounded-lg p-4">
+                  <div className="text-center text-gray-500">Select a document to see available users</div>
+                </div>
               ) : users.length === 0 ? (
                 <div className="border border-gray-300 rounded-lg p-4">
-                  <div className="text-center text-gray-500">No users available</div>
+                  <div className="text-center text-gray-500">No users available for this document</div>
                 </div>
               ) : (
                 <div className="border border-gray-300 rounded-lg max-h-60 overflow-y-auto">
