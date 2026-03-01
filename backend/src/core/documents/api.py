@@ -488,36 +488,9 @@ async def get_shared_users(
 
 
 @router.delete(
-    "/documents/{document_id}/share/{share_id}/me",
-    response_model=Message,
-    dependencies=[Depends(require_permission("documents.share_my"))],
-    description="Required permission: documents.share_my",
-)
-@inject
-async def delete_my_share_document(
-    document_id: UUID4,
-    share_id: UUID4,
-    current_user: CurrentUser,
-    document_service: DocumentService = Depends(Provide["document_service"]),
-) -> Message:
-    response = await document_service.delete_share_document(
-        document_id=document_id,
-        share_id=share_id,
-        current_user_id=current_user.id,
-        user_id=current_user.id,
-    )
-
-    if isinstance(response, Error):
-        raise HTTPException(status_code=response.code, detail=response.detail)
-
-    return response
-
-
-@router.delete(
     "/documents/{document_id}/share/{share_id}",
     response_model=Message,
-    dependencies=[Depends(require_permission("documents.share"))],
-    description="Required permission: documents.share",
+    description="Required permission: documents.share | documents.share_my",
 )
 @inject
 async def delete_share_document(
@@ -529,7 +502,7 @@ async def delete_share_document(
     response = await document_service.delete_share_document(
         document_id=document_id,
         share_id=share_id,
-        current_user_id=current_user.id,
+        current_user=current_user,
     )
 
     if isinstance(response, Error):
