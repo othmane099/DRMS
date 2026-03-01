@@ -27,6 +27,7 @@ export default function RemindersPage() {
         updateReminder: (id, data) => api.updateReminder(id, data),
         createDocumentReminder: (docId, data) => api.createDocumentReminder(docId, data),
         getDocuments: (filters) => api.getDocuments(filters),
+        getDocumentAssignableUsers: (docId) => api.getDocumentAssignableUsers(docId),
       }}
     />
   );

@@ -154,6 +154,10 @@ class ApiClient {
     return this.request<UserBasicId[]>(`/api/v1/users/for-assignment`);
   }
 
+  async getDocumentAssignableUsers(documentId: string): Promise<UserBasicId[]> {
+    return this.request<UserBasicId[]>(`/api/v1/documents/${documentId}/assignable-users`);
+  }
+
   async getUser(id: string): Promise<User> {
     return this.request<User>(`/api/v1/users/${id}`);
   }
