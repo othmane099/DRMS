@@ -261,8 +261,7 @@ class DocumentService(Protocol):
         self,
         document_id: UUID4,
         share_data: ShareDocumentCreate,
-        current_user_id: UUID4,
-        user_id: UUID4 | None = None,
+        current_user: User,
     ) -> list[ShareDocument] | Error: ...
 
     async def get_shared_users(
@@ -1172,10 +1171,17 @@ class DocumentServiceImpl(DocumentService):
         self,
         document_id: UUID4,
         share_data: ShareDocumentCreate,
-        current_user_id: UUID4,
-        user_id: UUID4 | None = None,
+        current_user: User,
     ) -> list[ShareDocument] | Error:
         logger.info("Sharing document (document_id=%s)", document_id)
+
+        result = await _permission_checker(
+            current_user, "documents.share", "documents.share_my"
+        )
+        if isinstance(result, Error):
+            return result
+        can_share_all = result is None or "documents.share" in result
+        scope_user_id = None if can_share_all else current_user.id
 
         # Validate date range if both dates are provided
         if share_data.start_date and share_data.end_date:
@@ -1192,7 +1198,7 @@ class DocumentServiceImpl(DocumentService):
         async with self._unit_of_work as uow:
             # Verify document exists
             document = await uow.document_repository.get_document_by_id(
-                document_id, user_id=user_id
+                document_id, user_id=scope_user_id
             )
             if not document:
                 logger.warning("Document not found (id=%s)", document_id)
@@ -1201,11 +1207,11 @@ class DocumentServiceImpl(DocumentService):
                 )
 
             # Only the document creator can share the document
-            if document.created_by != current_user_id:
+            if document.created_by != current_user.id:
                 logger.warning(
                     "Document sharing rejected: user is not the creator (id=%s, user=%s, creator=%s)",
                     document_id,
-                    current_user_id,
+                    current_user.id,
                     document.created_by,
                 )
                 return Error(
@@ -1227,45 +1233,45 @@ class DocumentServiceImpl(DocumentService):
 
             # Share with each user
             shared_list = []
-            for user_id in share_data.user_ids:
+            for share_user_id in share_data.user_ids:
                 # Verify user exists
-                user = await uow.user_repository.get_user_by_id(user_id)
+                user = await uow.user_repository.get_user_by_id(share_user_id)
                 if not user:
-                    logger.warning("User not found (user_id=%s)", user_id)
+                    logger.warning("User not found (user_id=%s)", share_user_id)
                     return Error(
-                        detail=f"User not found: {user_id}",
+                        detail=f"User not found: {share_user_id}",
                         code=status.HTTP_404_NOT_FOUND,
                     )
 
                 # Check if already shared with this user
                 existing_share = await uow.document_repository.check_existing_share(
-                    document_id, user_id
+                    document_id, share_user_id
                 )
                 if existing_share:
                     logger.warning(
                         "Document already shared with user (document_id=%s, user_id=%s)",
                         document_id,
-                        user_id,
+                        share_user_id,
                     )
                     continue
 
                 # Create share
                 share = await uow.document_repository.share_document(
                     document_id=document_id,
-                    user_id=user_id,
+                    user_id=share_user_id,
                     start_date=start_date,
                     end_date=end_date,
                 )
                 shared_list.append(share)
 
             # Create document history entry
-            user_names = ", ".join([str(user_id) for user_id in share_data.user_ids])
+            user_names = ", ".join([str(uid) for uid in share_data.user_ids])
             description = f"Document '{document.name}' shared with users: {user_names}"
             await uow.history_repository.create_document_history(
                 document_id=document.id,
                 action="Share Document",
                 description=description,
-                created_by=current_user_id,
+                created_by=current_user.id,
             )
 
             await uow.commit()

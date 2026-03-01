@@ -443,36 +443,9 @@ async def create_comment(
 
 
 @router.post(
-    "/documents/{document_id}/share/me",
-    response_model=list[ShareDocumentResponse],
-    dependencies=[Depends(require_permission("documents.share_my"))],
-    description="Required permission: documents.share_my",
-)
-@inject
-async def share_my_document(
-    document_id: UUID4,
-    current_user: CurrentUser,
-    share_data: ShareDocumentCreate,
-    document_service: DocumentService = Depends(Provide["document_service"]),
-) -> list[ShareDocumentResponse]:
-    response = await document_service.share_document(
-        document_id=document_id,
-        share_data=share_data,
-        current_user_id=current_user.id,
-        user_id=current_user.id,
-    )
-
-    if isinstance(response, Error):
-        raise HTTPException(status_code=response.code, detail=response.detail)
-
-    return [ShareDocumentResponse.model_validate(share) for share in response]
-
-
-@router.post(
     "/documents/{document_id}/share",
     response_model=list[ShareDocumentResponse],
-    dependencies=[Depends(require_permission("documents.share"))],
-    description="Required permission: documents.share",
+    description="Required permission: documents.share | documents.share_my",
 )
 @inject
 async def share_document(
@@ -484,7 +457,7 @@ async def share_document(
     response = await document_service.share_document(
         document_id=document_id,
         share_data=share_data,
-        current_user_id=current_user.id,
+        current_user=current_user,
     )
 
     if isinstance(response, Error):
