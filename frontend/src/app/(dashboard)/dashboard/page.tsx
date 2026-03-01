@@ -146,10 +146,10 @@ export default function DashboardPage() {
   }, []);
 
   const canCreateUsers = hasAnyPermission(['users.create']);
-  const canCreateDocument = hasAnyPermission(['documents.create']);
+  const canListDocuments = hasAnyPermission(['documents.list']);
   const canCreateCategory = hasAnyPermission(['categories.create']);
   const canCreateSubcategory = hasAnyPermission(['subcategories.create']);
-  const canCreateReminder = hasAnyPermission(['reminders.create']);
+  const canListReminders = hasAnyPermission(['reminders.list']);
 
   useEffect(() => {
     setIsLoading(true);
@@ -350,7 +350,7 @@ export default function DashboardPage() {
               </svg>
             }
         />
-        {canCreateDocument && (
+        {canListDocuments && (
           <StatCard
             title="Total Documents"
             value={dashboard.total_document}
@@ -373,7 +373,7 @@ export default function DashboardPage() {
               </svg>
             }
         />
-        {canCreateDocument && (
+        {canListDocuments && (
           <StatCard
             title="Today's Documents"
             value={dashboard.today_document}
@@ -396,7 +396,7 @@ export default function DashboardPage() {
               </svg>
             }
         />
-        {canCreateReminder && (
+        {canListReminders && (
           <StatCard
             title="Total Reminders"
             value={dashboard.total_reminder}
@@ -418,7 +418,7 @@ export default function DashboardPage() {
               </svg>
             }
         />
-        {canCreateReminder && (
+        {canListReminders && (
           <StatCard
             title="Today's Reminders"
             value={dashboard.today_reminder}
@@ -524,7 +524,7 @@ export default function DashboardPage() {
             </div>
         )}
       </Card>
-      {canCreateReminder && (
+      {canListReminders && (
         <Card>
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
             <h2 className="text-lg font-semibold">Agenda</h2>
