@@ -7,7 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from auth.models import User
-from core.models import Reminder
+from core.models import Document, Reminder, ShareDocument
 
 
 class ReminderRepository(Protocol):
@@ -212,6 +212,9 @@ class ReminderRepositoryImpl(ReminderRepository):
                     Reminder.assigned_users.any(User.id == user_id),
                 )
             )
+            query = query.where(
+                Reminder.document_id.in_(self._accessible_documents_subquery(user_id))
+            )
 
         query = query.order_by(Reminder.created_at.desc()).offset(skip).limit(limit)
         result = await self.session.execute(query)
@@ -236,9 +239,26 @@ class ReminderRepositoryImpl(ReminderRepository):
                     Reminder.assigned_users.any(User.id == user_id),
                 )
             )
+            query = query.where(
+                Reminder.document_id.in_(self._accessible_documents_subquery(user_id))
+            )
 
         result = await self.session.execute(query)
         return result.scalar() or 0
+
+    def _accessible_documents_subquery(self, user_id: UUID4):
+        return (
+            select(Document.id)
+            .outerjoin(ShareDocument, ShareDocument.document_id == Document.id)
+            .where(
+                or_(
+                    Document.created_by == user_id,
+                    Document.assigned_to == user_id,
+                    ShareDocument.user_id == user_id,
+                )
+            )
+            .distinct()
+        )
 
     async def get_all_reminders(
         self,
