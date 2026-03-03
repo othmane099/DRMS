@@ -1,7 +1,7 @@
 import json
 import logging
 import re
-from typing import Any, TypedDict
+from typing import Any, Protocol, TypedDict
 
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 from langchain_core.output_parsers import StrOutputParser
@@ -57,6 +57,9 @@ _FORMATTER_SYSTEM_PROMPT = (
     "Never include IDs, UUIDs, or any identifier fields in the response."
 )
 
+_CHUNK_SIZE = 4_000
+_CHUNK_OVERLAP = 200
+
 
 class FilterState(TypedDict):
     user_message: str
@@ -67,8 +70,22 @@ class FilterState(TypedDict):
     iterations: int
 
 
-def _get_llm() -> ChatOllama:
-    return ChatOllama(base_url=settings.OLLAMA_HOST, model=settings.OLLAMA_MODEL)
+class DocumentAgentService(Protocol):
+    async def extract_filters(self, message: str) -> DocumentSearchFilters: ...
+
+    async def generate_summary(self, text: str, document_name: str) -> str: ...
+
+    async def chat_with_document(
+        self,
+        context: str,
+        document_name: str,
+        history: list[dict[str, str]],
+        user_message: str,
+    ) -> str: ...
+
+    async def format_results(
+        self, message: str, rows: list[dict[str, Any]]
+    ) -> str: ...
 
 
 def _parse_review(content: str) -> tuple[int, str]:
@@ -82,218 +99,209 @@ def _parse_review(content: str) -> tuple[int, str]:
     return 0, "Failed to parse review"
 
 
-async def extractor_node(state: FilterState) -> dict[str, Any]:
-    feedback_section = (
-        f"\nPrevious filters: {state['extracted_filters_json']}\nFeedback: {state['feedback']}"
-        if state["extracted_filters_json"]
-        else ""
-    )
-    messages = [
-        SystemMessage(content=_FILTER_SYSTEM_PROMPT),
-        HumanMessage(content=f"{state['user_message']}{feedback_section}"),
-    ]
-    response = await _get_llm().ainvoke(messages)
-    content = str(response.content).strip()
-    logger.debug(
-        "extractor_node iteration=%d raw: %s", state["iterations"] + 1, content
-    )
+class DocumentAgentServiceImpl(DocumentAgentService):
+    def __init__(self) -> None:
+        self._llm = ChatOllama(base_url=settings.OLLAMA_HOST, model=settings.OLLAMA_MODEL)
+        self._splitter = RecursiveCharacterTextSplitter(
+            chunk_size=_CHUNK_SIZE,
+            chunk_overlap=_CHUNK_OVERLAP,
+        )
 
-    try:
-        match = re.search(r"\{.*\}", content, re.DOTALL)
-        if not match:
-            raise ValueError("No JSON object found in response")
-        data = json.loads(match.group())
-        filters = DocumentSearchFilters.model_validate(data)
-        logger.debug("extractor_node parsed: %s", filters)
-        return {
-            "extracted_filters_json": json.dumps(data),
-            "filters": filters,
-            "iterations": state["iterations"] + 1,
-        }
-    except Exception as exc:
-        logger.debug("extractor_node parse error: %s", exc)
-        return {
+    async def _extractor_node(self, state: FilterState) -> dict[str, Any]:
+        feedback_section = (
+            f"\nPrevious filters: {state['extracted_filters_json']}\nFeedback: {state['feedback']}"
+            if state["extracted_filters_json"]
+            else ""
+        )
+        messages = [
+            SystemMessage(content=_FILTER_SYSTEM_PROMPT),
+            HumanMessage(content=f"{state['user_message']}{feedback_section}"),
+        ]
+        response = await self._llm.ainvoke(messages)
+        content = str(response.content).strip()
+        logger.debug(
+            "extractor_node iteration=%d raw: %s", state["iterations"] + 1, content
+        )
+
+        try:
+            match = re.search(r"\{.*\}", content, re.DOTALL)
+            if not match:
+                raise ValueError("No JSON object found in response")
+            data = json.loads(match.group())
+            filters = DocumentSearchFilters.model_validate(data)
+            logger.debug("extractor_node parsed: %s", filters)
+            return {
+                "extracted_filters_json": json.dumps(data),
+                "filters": filters,
+                "iterations": state["iterations"] + 1,
+            }
+        except Exception as exc:
+            logger.debug("extractor_node parse error: %s", exc)
+            return {
+                "extracted_filters_json": "",
+                "filters": None,
+                "feedback": f"Parse/validation error: {exc}",
+                "iterations": state["iterations"] + 1,
+            }
+
+    async def _reviewer_node(self, state: FilterState) -> dict[str, Any]:
+        if not state["extracted_filters_json"]:
+            return {"score": 0}
+
+        messages = [
+            SystemMessage(content=_FILTER_REVIEWER_PROMPT),
+            HumanMessage(
+                content=(
+                    f"User query: {state['user_message']}\n\n"
+                    f"Extracted filters:\n{state['extracted_filters_json']}"
+                )
+            ),
+        ]
+        response = await self._llm.ainvoke(messages)
+        score, feedback = _parse_review(str(response.content))
+        logger.debug("reviewer_node score=%d feedback=%s", score, feedback)
+        return {"score": score, "feedback": feedback}
+
+    @staticmethod
+    def _route(state: FilterState) -> str:
+        if (
+            state["score"] >= SCORE_THRESHOLD
+            or state["iterations"] >= settings.OLLAMA_MAX_ITERATIONS
+        ):
+            return "done"
+        return "extractor"
+
+    def _build_filter_graph(self) -> Any:
+        graph: StateGraph = StateGraph(FilterState)
+        graph.add_node("extractor", self._extractor_node)
+        graph.add_node("reviewer", self._reviewer_node)
+
+        graph.add_edge(START, "extractor")
+        graph.add_edge("extractor", "reviewer")
+        graph.add_conditional_edges(
+            "reviewer",
+            self._route,
+            {"done": END, "extractor": "extractor"},
+        )
+
+        return graph.compile()
+
+    async def extract_filters(self, message: str) -> DocumentSearchFilters:
+        graph = self._build_filter_graph()
+        state: FilterState = {
+            "user_message": message,
             "extracted_filters_json": "",
             "filters": None,
-            "feedback": f"Parse/validation error: {exc}",
-            "iterations": state["iterations"] + 1,
+            "score": 0,
+            "feedback": "",
+            "iterations": 0,
         }
+        final_state: FilterState = await graph.ainvoke(state)
 
-
-async def reviewer_node(state: FilterState) -> dict[str, Any]:
-    if not state["extracted_filters_json"]:
-        return {"score": 0}
-
-    messages = [
-        SystemMessage(content=_FILTER_REVIEWER_PROMPT),
-        HumanMessage(
-            content=(
-                f"User query: {state['user_message']}\n\n"
-                f"Extracted filters:\n{state['extracted_filters_json']}"
+        if final_state["filters"] is not None:
+            logger.info(
+                "Filters extracted (score=%d) in %d iteration(s)",
+                final_state["score"],
+                final_state["iterations"],
             )
-        ),
-    ]
-    response = await _get_llm().ainvoke(messages)
-    score, feedback = _parse_review(str(response.content))
-    logger.debug("reviewer_node score=%d feedback=%s", score, feedback)
-    return {"score": score, "feedback": feedback}
+            return final_state["filters"]
 
-
-def _route(state: FilterState) -> str:
-    if (
-        state["score"] >= SCORE_THRESHOLD
-        or state["iterations"] >= settings.OLLAMA_MAX_ITERATIONS
-    ):
-        return "done"
-    return "extractor"
-
-
-def _build_filter_graph() -> Any:
-    graph: StateGraph = StateGraph(FilterState)
-    graph.add_node("extractor", extractor_node)
-    graph.add_node("reviewer", reviewer_node)
-
-    graph.add_edge(START, "extractor")
-    graph.add_edge("extractor", "reviewer")
-    graph.add_conditional_edges(
-        "reviewer",
-        _route,
-        {"done": END, "extractor": "extractor"},
-    )
-
-    return graph.compile()
-
-
-async def extract_filters(message: str) -> DocumentSearchFilters:
-    graph = _build_filter_graph()
-    state: FilterState = {
-        "user_message": message,
-        "extracted_filters_json": "",
-        "filters": None,
-        "score": 0,
-        "feedback": "",
-        "iterations": 0,
-    }
-    final_state: FilterState = await graph.ainvoke(state)
-
-    if final_state["filters"] is not None:
-        logger.info(
-            "Filters extracted (score=%d) in %d iteration(s)",
-            final_state["score"],
-            final_state["iterations"],
+        logger.warning(
+            "Filter extraction failed for message=%r, returning empty filters", message
         )
-        return final_state["filters"]
+        return DocumentSearchFilters()
 
-    logger.warning(
-        "Filter extraction failed for message=%r, returning empty filters", message
-    )
-    return DocumentSearchFilters()
+    async def generate_summary(self, text: str, document_name: str) -> str:
+        docs = self._splitter.create_documents([text])
 
+        if len(docs) == 1:
+            chain = (
+                PromptTemplate(
+                    input_variables=["text"],
+                    template=(
+                        f'Summarize the document "{document_name}" in 2-4 sentences.\n'
+                        "Focus on the main topics, key information, and purpose.\n"
+                        "Output ONLY the summary text.\n\n{text}"
+                    ),
+                )
+                | self._llm
+                | StrOutputParser()
+            )
+            return await chain.ainvoke({"text": text})
 
-_CHUNK_SIZE = 4_000
-_CHUNK_OVERLAP = 200
+        logger.debug("generate_summary: %d chunks for %r", len(docs), document_name)
 
-_splitter = RecursiveCharacterTextSplitter(
-    chunk_size=_CHUNK_SIZE,
-    chunk_overlap=_CHUNK_OVERLAP,
-)
+        map_chain = (
+            PromptTemplate(
+                input_variables=["text"],
+                template="Summarize the key points from this excerpt in 1-2 sentences:\n\n{text}",
+            )
+            | self._llm
+            | StrOutputParser()
+        )
+        chunk_summaries = []
+        for doc in docs:
+            summary = await map_chain.ainvoke({"text": doc.page_content})
+            chunk_summaries.append(summary.strip())
 
-
-async def generate_summary(text: str, document_name: str) -> str:
-    llm = _get_llm()
-    docs = _splitter.create_documents([text])
-
-    if len(docs) == 1:
-        chain = (
+        combine_chain = (
             PromptTemplate(
                 input_variables=["text"],
                 template=(
-                    f'Summarize the document "{document_name}" in 2-4 sentences.\n'
-                    "Focus on the main topics, key information, and purpose.\n"
+                    f'You are summarizing the document "{document_name}".\n'
+                    "Given these partial summaries, write a final concise 2-4 sentence summary "
+                    "covering the main topics, key information, and purpose.\n"
                     "Output ONLY the summary text.\n\n{text}"
                 ),
             )
-            | llm
+            | self._llm
             | StrOutputParser()
         )
-        return await chain.ainvoke({"text": text})
+        return await combine_chain.ainvoke({"text": "\n\n".join(chunk_summaries)})
 
-    logger.debug("generate_summary: %d chunks for %r", len(docs), document_name)
+    async def chat_with_document(
+        self,
+        context: str,
+        document_name: str,
+        history: list[dict[str, str]],
+        user_message: str,
+    ) -> str:
+        if context:
+            system_content = (
+                f'You are a helpful assistant answering questions about "{document_name}".\n'
+                "Answer using only the relevant excerpts below. "
+                "If the answer is not in them, say so clearly.\n\n"
+                f"Relevant excerpts:\n{context}"
+            )
+        else:
+            system_content = (
+                f'You are a helpful assistant. The document "{document_name}" '
+                "content is unavailable (unsupported format or indexing in progress). "
+                "Let the user know."
+            )
 
-    # Map: summarize each chunk
-    map_chain = (
-        PromptTemplate(
-            input_variables=["text"],
-            template="Summarize the key points from this excerpt in 1-2 sentences:\n\n{text}",
-        )
-        | llm
-        | StrOutputParser()
-    )
-    chunk_summaries = []
-    for doc in docs:
-        summary = await map_chain.ainvoke({"text": doc.page_content})
-        chunk_summaries.append(summary.strip())
+        lc_messages: list = [SystemMessage(content=system_content)]
+        for msg in history:
+            lc_messages.append(
+                HumanMessage(content=msg["content"])
+                if msg["role"] == "user"
+                else AIMessage(content=msg["content"])
+            )
+        lc_messages.append(HumanMessage(content=user_message))
 
-    # Reduce: combine chunk summaries into final summary
-    combine_chain = (
-        PromptTemplate(
-            input_variables=["text"],
-            template=(
-                f'You are summarizing the document "{document_name}".\n'
-                "Given these partial summaries, write a final concise 2-4 sentence summary "
-                "covering the main topics, key information, and purpose.\n"
-                "Output ONLY the summary text.\n\n{text}"
+        chain = self._llm | StrOutputParser()
+        return await chain.ainvoke(lc_messages)
+
+    async def format_results(self, message: str, rows: list[dict[str, Any]]) -> str:
+        if not rows:
+            return "No documents found matching your request."
+
+        rows_text = json.dumps(rows[:20], default=str, indent=2)
+        messages = [
+            SystemMessage(content=_FORMATTER_SYSTEM_PROMPT),
+            HumanMessage(
+                content=f"User request: {message}\n\nResults ({len(rows)} rows):\n{rows_text}"
             ),
-        )
-        | llm
-        | StrOutputParser()
-    )
-    return await combine_chain.ainvoke({"text": "\n\n".join(chunk_summaries)})
-
-
-async def chat_with_document(
-    context: str,
-    document_name: str,
-    history: list[dict[str, str]],
-    user_message: str,
-) -> str:
-    if context:
-        system_content = (
-            f'You are a helpful assistant answering questions about "{document_name}".\n'
-            "Answer using only the relevant excerpts below. "
-            "If the answer is not in them, say so clearly.\n\n"
-            f"Relevant excerpts:\n{context}"
-        )
-    else:
-        system_content = (
-            f'You are a helpful assistant. The document "{document_name}" '
-            "content is unavailable (unsupported format or indexing in progress). "
-            "Let the user know."
-        )
-
-    lc_messages: list = [SystemMessage(content=system_content)]
-    for msg in history:
-        lc_messages.append(
-            HumanMessage(content=msg["content"])
-            if msg["role"] == "user"
-            else AIMessage(content=msg["content"])
-        )
-    lc_messages.append(HumanMessage(content=user_message))
-
-    chain = _get_llm() | StrOutputParser()
-    return await chain.ainvoke(lc_messages)
-
-
-async def format_results(message: str, rows: list[dict[str, Any]]) -> str:
-    if not rows:
-        return "No documents found matching your request."
-
-    rows_text = json.dumps(rows[:20], default=str, indent=2)
-    messages = [
-        SystemMessage(content=_FORMATTER_SYSTEM_PROMPT),
-        HumanMessage(
-            content=f"User request: {message}\n\nResults ({len(rows)} rows):\n{rows_text}"
-        ),
-    ]
-    response = await _get_llm().ainvoke(messages)
-    return str(response.content).strip()
+        ]
+        response = await self._llm.ainvoke(messages)
+        return str(response.content).strip()

@@ -18,6 +18,7 @@ from configuration.stages.service import StageServiceImpl
 from configuration.subcategories.service import SubcategoryServiceImpl
 from configuration.tags.service import TagServiceImpl
 from core.dashboard.service import DashboardServiceImpl
+from core.documents.agents import DocumentAgentServiceImpl
 from core.documents.service import DocumentServiceImpl
 from db import default_session_factory
 from unit_of_work.uow import UnitOfWorkImpl
@@ -77,6 +78,7 @@ class Container(containers.DeclarativeContainer):
         TagServiceImpl,
         unit_of_work=unit_of_work,
     )
+    agent_service = providers.Factory(DocumentAgentServiceImpl)
     document_service = providers.Factory(
         DocumentServiceImpl,
         unit_of_work=unit_of_work,

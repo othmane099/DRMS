@@ -17,12 +17,7 @@ from auth.models import User
 from auth.permissions.service import PermissionService
 from auth.roles.service import RoleService
 from config import settings
-from core.documents.agents import (
-    chat_with_document,
-    extract_filters,
-    format_results,
-    generate_summary,
-)
+from core.documents.agents import DocumentAgentService
 from core.documents.chat_store import load_history, save_history
 from core.documents.rag import build_vectorstore, retrieve_context
 from core.documents.schemas import (
@@ -115,6 +110,7 @@ async def _run_document_summary(
     document_name: str,
     document_file: str,
     unit_of_work: UnitOfWork = Provide["unit_of_work"],
+    agent_service: DocumentAgentService = Provide["agent_service"],
 ) -> None:
     logger.info(
         "Summary task started (version_id=%s, document=%r)", version_id, document_name
@@ -135,7 +131,7 @@ async def _run_document_summary(
             len(text),
             document_name,
         )
-        summary = await generate_summary(text, document_name)
+        summary = await agent_service.generate_summary(text, document_name)
 
         async with unit_of_work as uow:
             await uow.document_repository.update_version_summary(version_id, summary)
@@ -311,8 +307,13 @@ class DocumentService(Protocol):
 
 class DocumentServiceImpl(DocumentService):
     @inject
-    def __init__(self, unit_of_work: UnitOfWork = Provide["unit_of_work"]):
+    def __init__(
+        self,
+        unit_of_work: UnitOfWork = Provide["unit_of_work"],
+        agent_service: DocumentAgentService = Provide["agent_service"],
+    ):
         self._unit_of_work = unit_of_work
+        self._agent_service = agent_service
 
     async def get_all_documents_paginated(
         self,
@@ -1710,7 +1711,7 @@ class DocumentServiceImpl(DocumentService):
             user_id = None if can_search_all else current_user.id
 
         try:
-            filters = await extract_filters(request.message)
+            filters = await self._agent_service.extract_filters(request.message)
         except Exception:
             logger.exception("Filter extraction failed")
             return Error(
@@ -1724,7 +1725,7 @@ class DocumentServiceImpl(DocumentService):
             )
 
         try:
-            message = await format_results(request.message, rows)
+            message = await self._agent_service.format_results(request.message, rows)
         except Exception:
             logger.exception("Result formatting failed")
             return Error(
@@ -1774,7 +1775,9 @@ class DocumentServiceImpl(DocumentService):
         user_id_str = str(current_user.id) if current_user else "anon"
         history = await load_history(str(document_id), str(version_id), user_id_str)
         context = await retrieve_context(str(version_id), user_message)
-        reply = await chat_with_document(context, document_name, history, user_message)
+        reply = await self._agent_service.chat_with_document(
+            context, document_name, history, user_message
+        )
         history.append({"role": "user", "content": user_message})
         history.append({"role": "assistant", "content": reply})
         await save_history(str(document_id), str(version_id), user_id_str, history)
