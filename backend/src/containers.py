@@ -1,6 +1,7 @@
 import os
 import sys
 
+import redis.asyncio as aioredis
 from dependency_injector import containers, providers
 
 from core.histories.service import HistoryServiceImpl
@@ -19,7 +20,9 @@ from configuration.subcategories.service import SubcategoryServiceImpl
 from configuration.tags.service import TagServiceImpl
 from core.dashboard.service import DashboardServiceImpl
 from core.documents.agents import DocumentAgentServiceImpl
+from core.documents.chat_store import ChatStoreServiceImpl
 from core.documents.service import DocumentServiceImpl
+from config import settings
 from db import default_session_factory
 from unit_of_work.uow import UnitOfWorkImpl
 
@@ -34,6 +37,12 @@ class Container(containers.DeclarativeContainer):
     )
 
     DEFAULT_SESSION_FACTORY = default_session_factory
+
+    redis_client = providers.Singleton(
+        aioredis.from_url,
+        settings.REDIS_URL,
+        decode_responses=True,
+    )
 
     unit_of_work = providers.Factory(
         UnitOfWorkImpl, session_factory=DEFAULT_SESSION_FACTORY
@@ -79,6 +88,10 @@ class Container(containers.DeclarativeContainer):
         unit_of_work=unit_of_work,
     )
     agent_service = providers.Factory(DocumentAgentServiceImpl)
+    chat_store_service = providers.Factory(
+        ChatStoreServiceImpl,
+        redis_client=redis_client,
+    )
     document_service = providers.Factory(
         DocumentServiceImpl,
         unit_of_work=unit_of_work,
