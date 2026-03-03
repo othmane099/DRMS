@@ -9,7 +9,7 @@ from uuid import UUID
 
 from cryptography.fernet import Fernet, InvalidToken
 from dependency_injector.wiring import Provide, inject
-from fastapi import BackgroundTasks, UploadFile
+from fastapi import UploadFile
 from pydantic import UUID4
 from starlette import status
 
@@ -18,6 +18,7 @@ from auth.permissions.service import PermissionService
 from auth.roles.service import RoleService
 from config import settings
 from core.documents.agents import DocumentAgentService
+from core.documents.tasks import run_document_embedding, run_document_summary
 from core.documents.chat_store import ChatStoreService
 from core.documents.rag import RagService
 from core.documents.schemas import (
@@ -32,7 +33,6 @@ from core.documents.schemas import (
     ShareDocumentCreate,
     ShareLinkCreate,
 )
-from core.documents.text_extractor import extract_text
 from core.models import (
     Document,
     DocumentComment,
@@ -104,66 +104,6 @@ async def _permission_checker(
     return intersected_permissions
 
 
-@inject
-async def _run_document_summary(
-    version_id: UUID,
-    document_name: str,
-    document_file: str,
-    unit_of_work: UnitOfWork = Provide["unit_of_work"],
-    agent_service: DocumentAgentService = Provide["agent_service"],
-) -> None:
-    logger.info(
-        "Summary task started (version_id=%s, document=%r)", version_id, document_name
-    )
-    try:
-        logger.debug("Summary task: extracting text from %s", document_file)
-        text = await extract_text(document_file)
-        if not text:
-            logger.info(
-                "Summary task: skipped — no extractable text (version_id=%s, file=%s)",
-                version_id,
-                document_file,
-            )
-            return
-
-        logger.debug(
-            "Summary task: generating summary (%d chars) for %r",
-            len(text),
-            document_name,
-        )
-        summary = await agent_service.generate_summary(text, document_name)
-
-        async with unit_of_work as uow:
-            await uow.document_repository.update_version_summary(version_id, summary)
-            await uow.commit()
-
-        logger.info(
-            "Summary task completed (version_id=%s, document=%r, summary_len=%d)",
-            version_id,
-            document_name,
-            len(summary),
-        )
-    except Exception:
-        logger.exception(
-            "Summary task failed (version_id=%s, document=%r)",
-            version_id,
-            document_name,
-        )
-
-
-@inject
-async def _run_document_embedding(
-    version_id: UUID,
-    document_file: str,
-    rag_service: RagService = Provide["rag_service"],
-) -> None:
-    logger.info("Embedding task started (version_id=%s)", version_id)
-    try:
-        await rag_service.build_vectorstore(str(version_id), document_file)
-        logger.info("Embedding task completed (version_id=%s)", version_id)
-    except Exception:
-        logger.exception("Embedding task failed (version_id=%s)", version_id)
-
 
 ALLOWED_EXTENSIONS = {
     "pdf",
@@ -193,7 +133,6 @@ class DocumentService(Protocol):
         document_create: DocumentCreate,
         document_file: UploadFile,
         current_user: User,
-        background_tasks: BackgroundTasks | None = None,
     ) -> Document | Error: ...
 
     async def update_document(
@@ -228,7 +167,6 @@ class DocumentService(Protocol):
         document_id: UUID4,
         document_file: UploadFile,
         current_user: User,
-        background_tasks: BackgroundTasks | None = None,
     ) -> VersionHistory | Error: ...
 
     async def get_version_file_path(
@@ -395,7 +333,6 @@ class DocumentServiceImpl(DocumentService):
         document_create: DocumentCreate,
         document_file: UploadFile,
         current_user: User,
-        background_tasks: BackgroundTasks | None = None,
     ) -> Document | Error:
         result = await _permission_checker(current_user, "documents.create")
         if isinstance(result, Error):
@@ -527,11 +464,8 @@ class DocumentServiceImpl(DocumentService):
                 document.id
             )
 
-        if background_tasks is not None:
-            background_tasks.add_task(
-                _run_document_summary, version_id, doc_name, doc_file
-            )
-            background_tasks.add_task(_run_document_embedding, version_id, doc_file)
+        run_document_summary.delay(str(version_id), doc_name, doc_file)
+        run_document_embedding.delay(str(version_id), doc_file)
 
         logger.info(
             "Document created successfully (id=%s, name=%s)",
@@ -903,7 +837,6 @@ class DocumentServiceImpl(DocumentService):
         document_id: UUID4,
         document_file: UploadFile,
         current_user: User,
-        background_tasks: BackgroundTasks | None = None,
     ) -> VersionHistory | Error:
         logger.info("Creating new version (document_id=%s)", document_id)
 
@@ -991,11 +924,8 @@ class DocumentServiceImpl(DocumentService):
 
             await uow.commit()
 
-        if background_tasks is not None:
-            background_tasks.add_task(
-                _run_document_summary, version_id, doc_name, doc_file
-            )
-            background_tasks.add_task(_run_document_embedding, version_id, doc_file)
+        run_document_summary.delay(str(version_id), doc_name, doc_file)
+        run_document_embedding.delay(str(version_id), doc_file)
 
         logger.info(
             "New version created successfully (document_id=%s, version=%d)",

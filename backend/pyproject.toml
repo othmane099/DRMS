@@ -36,6 +36,7 @@ dependencies = [
     "openpyxl>=3.1.5",
     "langchain>=1.2.10",
     "langchain-text-splitters>=1.1.1",
+    "celery>=5.6.2",
     "redis>=7.2.1",
     "chromadb>=1.5.1",
     "langchain-chroma>=1.1.0",

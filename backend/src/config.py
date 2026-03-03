@@ -32,6 +32,8 @@ class Settings(BaseSettings):
     OLLAMA_EMBED_MODEL: str = "nomic-embed-text"
 
     REDIS_URL: str = "redis://localhost:6379"
+    CELERY_BROKER_URL: str = "redis://localhost:6379/1"
+    CELERY_RESULT_BACKEND: str = "redis://localhost:6379/1"
     CHROMA_DIR: str = "./chroma_db"
 
     OTEL_ENABLED: bool = False
