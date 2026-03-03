@@ -18,7 +18,7 @@ from auth.permissions.service import PermissionService
 from auth.roles.service import RoleService
 from config import settings
 from core.documents.agents import DocumentAgentService
-from core.documents.chat_store import load_history, save_history
+from core.documents.chat_store import ChatStoreService
 from core.documents.rag import build_vectorstore, retrieve_context
 from core.documents.schemas import (
     DocumentCommentCreate,
@@ -311,9 +311,11 @@ class DocumentServiceImpl(DocumentService):
         self,
         unit_of_work: UnitOfWork = Provide["unit_of_work"],
         agent_service: DocumentAgentService = Provide["agent_service"],
+        chat_store_service: ChatStoreService = Provide["chat_store_service"],
     ):
         self._unit_of_work = unit_of_work
         self._agent_service = agent_service
+        self._chat_store_service = chat_store_service
 
     async def get_all_documents_paginated(
         self,
@@ -1773,12 +1775,25 @@ class DocumentServiceImpl(DocumentService):
             document_name = document.name
 
         user_id_str = str(current_user.id) if current_user else "anon"
-        history = await load_history(str(document_id), str(version_id), user_id_str)
-        context = await retrieve_context(str(version_id), user_message)
-        reply = await self._agent_service.chat_with_document(
-            context, document_name, history, user_message
+        history = await self._chat_store_service.load_history(
+            str(document_id), str(version_id), user_id_str
         )
+        context = await retrieve_context(str(version_id), user_message)
+        try:
+            reply = await self._agent_service.chat_with_document(
+                context, document_name, history, user_message
+            )
+        except Exception:
+            logger.exception(
+                "Chat failed (document_id=%s, version_id=%s)", document_id, version_id
+            )
+            return Error(
+                detail="Chat failed, please try again later",
+                code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
         history.append({"role": "user", "content": user_message})
         history.append({"role": "assistant", "content": reply})
-        await save_history(str(document_id), str(version_id), user_id_str, history)
+        await self._chat_store_service.save_history(
+            str(document_id), str(version_id), user_id_str, history
+        )
         return reply
