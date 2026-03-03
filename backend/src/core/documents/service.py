@@ -19,7 +19,7 @@ from auth.roles.service import RoleService
 from config import settings
 from core.documents.agents import DocumentAgentService
 from core.documents.chat_store import ChatStoreService
-from core.documents.rag import build_vectorstore, retrieve_context
+from core.documents.rag import RagService
 from core.documents.schemas import (
     DocumentCommentCreate,
     DocumentCreate,
@@ -151,13 +151,15 @@ async def _run_document_summary(
         )
 
 
+@inject
 async def _run_document_embedding(
     version_id: UUID,
     document_file: str,
+    rag_service: RagService = Provide["rag_service"],
 ) -> None:
     logger.info("Embedding task started (version_id=%s)", version_id)
     try:
-        await build_vectorstore(str(version_id), document_file)
+        await rag_service.build_vectorstore(str(version_id), document_file)
         logger.info("Embedding task completed (version_id=%s)", version_id)
     except Exception:
         logger.exception("Embedding task failed (version_id=%s)", version_id)
@@ -311,10 +313,12 @@ class DocumentServiceImpl(DocumentService):
         self,
         unit_of_work: UnitOfWork = Provide["unit_of_work"],
         agent_service: DocumentAgentService = Provide["agent_service"],
+        rag_service: RagService = Provide["rag_service"],
         chat_store_service: ChatStoreService = Provide["chat_store_service"],
     ):
         self._unit_of_work = unit_of_work
         self._agent_service = agent_service
+        self._rag_service = rag_service
         self._chat_store_service = chat_store_service
 
     async def get_all_documents_paginated(
@@ -1778,7 +1782,9 @@ class DocumentServiceImpl(DocumentService):
         history = await self._chat_store_service.load_history(
             str(document_id), str(version_id), user_id_str
         )
-        context = await retrieve_context(str(version_id), user_message)
+        context = await self._rag_service.retrieve_context(
+            str(version_id), user_message
+        )
         try:
             reply = await self._agent_service.chat_with_document(
                 context, document_name, history, user_message

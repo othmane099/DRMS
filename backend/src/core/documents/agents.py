@@ -83,9 +83,7 @@ class DocumentAgentService(Protocol):
         user_message: str,
     ) -> str: ...
 
-    async def format_results(
-        self, message: str, rows: list[dict[str, Any]]
-    ) -> str: ...
+    async def format_results(self, message: str, rows: list[dict[str, Any]]) -> str: ...
 
 
 def _parse_review(content: str) -> tuple[int, str]:
@@ -101,7 +99,9 @@ def _parse_review(content: str) -> tuple[int, str]:
 
 class DocumentAgentServiceImpl(DocumentAgentService):
     def __init__(self) -> None:
-        self._llm = ChatOllama(base_url=settings.OLLAMA_HOST, model=settings.OLLAMA_MODEL)
+        self._llm = ChatOllama(
+            base_url=settings.OLLAMA_HOST, model=settings.OLLAMA_MODEL
+        )
         self._splitter = RecursiveCharacterTextSplitter(
             chunk_size=_CHUNK_SIZE,
             chunk_overlap=_CHUNK_OVERLAP,
