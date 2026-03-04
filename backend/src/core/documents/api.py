@@ -17,6 +17,8 @@ from pydantic import UUID4
 from auth.dependencies import CurrentUser
 from auth.users.schemas import UserBasicIdResponse
 from core.documents.schemas import (
+    ChatHistoryResponse,
+    ChatMessage,
     DocumentChatRequest,
     DocumentChatResponse,
     DocumentCommentCreate,
@@ -655,6 +657,26 @@ async def search_documents(
         raise HTTPException(status_code=result.code or 500, detail=result.detail)
 
     return result
+
+
+@router.get(
+    "/documents/{document_id}/versions/{version_id}/chat",
+    response_model=ChatHistoryResponse,
+    description="Required permission: documents.chat | documents.chat_my",
+)
+@inject
+async def get_chat_history(
+    document_id: UUID4,
+    version_id: UUID4,
+    current_user: CurrentUser,
+    document_service: DocumentService = Depends(Provide["document_service"]),
+) -> ChatHistoryResponse:
+    result = await document_service.get_chat_history(
+        document_id, version_id, current_user=current_user
+    )
+    if isinstance(result, Error):
+        raise HTTPException(status_code=result.code, detail=result.detail)
+    return ChatHistoryResponse(messages=[ChatMessage(**m) for m in result])
 
 
 @router.post(

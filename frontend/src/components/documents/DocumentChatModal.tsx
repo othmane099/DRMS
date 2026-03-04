@@ -14,6 +14,7 @@ interface DocumentChatModalProps {
   documentName: string;
   versionNumber?: number;
   onSend: (message: string) => Promise<{ message: string }>;
+  onLoadHistory?: () => Promise<{ messages: ChatMessage[] }>;
 }
 
 export function DocumentChatModal({
@@ -22,12 +23,24 @@ export function DocumentChatModal({
   documentName,
   versionNumber,
   onSend,
+  onLoadHistory,
 }: DocumentChatModalProps) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
+  const [historyLoading, setHistoryLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    if (!onLoadHistory) return;
+    setHistoryLoading(true);
+    onLoadHistory()
+      .then((data) => setMessages(data.messages))
+      .catch(() => {/* silently ignore — history just won't be pre-loaded */})
+      .finally(() => setHistoryLoading(false));
+  }, [isOpen]);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -68,7 +81,10 @@ export function DocumentChatModal({
       <div className="flex flex-col" style={{ height: '420px' }}>
         {/* Messages */}
         <div className="flex-1 overflow-y-auto space-y-3 pr-1 min-h-0">
-          {messages.length === 0 && !loading && (
+          {historyLoading && (
+            <p className="text-center text-sm text-gray-400 pt-16">Loading history…</p>
+          )}
+          {!historyLoading && messages.length === 0 && !loading && (
             <p className="text-center text-sm text-gray-400 pt-16">
               Ask anything about this document.
             </p>

@@ -34,6 +34,8 @@ export default function DocumentsPage() {
           getVersions: (id) => api.getDocumentVersions(id),
           chatWithVersion: (docId, versionId, msg) =>
             api.chatWithDocumentVersion(docId, versionId, msg),
+          getChatHistory: (docId, versionId) =>
+            api.getChatHistory(docId, versionId),
         }}
       />
     </div>

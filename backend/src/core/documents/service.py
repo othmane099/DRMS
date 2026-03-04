@@ -18,7 +18,6 @@ from auth.permissions.service import PermissionService
 from auth.roles.service import RoleService
 from config import settings
 from core.documents.agents import DocumentAgentService
-from core.documents.tasks import run_document_embedding, run_document_summary
 from core.documents.chat_store import ChatStoreService
 from core.documents.rag import RagService
 from core.documents.schemas import (
@@ -33,6 +32,7 @@ from core.documents.schemas import (
     ShareDocumentCreate,
     ShareLinkCreate,
 )
+from core.documents.tasks import run_document_embedding, run_document_summary
 from core.models import (
     Document,
     DocumentComment,
@@ -243,6 +243,13 @@ class DocumentService(Protocol):
         user_message: str,
         current_user: User | None = None,
     ) -> str | Error: ...
+
+    async def get_chat_history(
+        self,
+        document_id: UUID4,
+        version_id: UUID4,
+        current_user: User | None = None,
+    ) -> list[dict[str, str]] | Error: ...
 
 
 class DocumentServiceImpl(DocumentService):
@@ -1733,3 +1740,36 @@ class DocumentServiceImpl(DocumentService):
             str(document_id), str(version_id), user_id_str, history
         )
         return reply
+
+    async def get_chat_history(
+        self,
+        document_id: UUID4,
+        version_id: UUID4,
+        current_user: User | None = None,
+    ) -> list[dict[str, str]] | Error:
+        scope_user_id = None
+        if current_user is not None:
+            result = await _permission_checker(
+                current_user, "documents.chat", "documents.chat_my"
+            )
+            if isinstance(result, Error):
+                return result
+            can_chat_all = result is None or "documents.chat" in result
+            scope_user_id = None if can_chat_all else current_user.id
+
+        async with self._unit_of_work as uow:
+            document = await uow.document_repository.get_document_by_id(
+                document_id, user_id=scope_user_id
+            )
+            if not document:
+                return Error(
+                    detail="Document not found", code=status.HTTP_404_NOT_FOUND
+                )
+            versions = await uow.document_repository.get_version_histories(document_id)
+            if not any(v.id == version_id for v in versions):
+                return Error(detail="Version not found", code=status.HTTP_404_NOT_FOUND)
+
+        user_id_str = str(current_user.id) if current_user else "anon"
+        return await self._chat_store_service.load_history(
+            str(document_id), str(version_id), user_id_str
+        )

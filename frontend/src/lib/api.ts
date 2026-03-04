@@ -49,6 +49,7 @@ import {
   DashboardResponse, UserBasicId, PasswordUpdate, Message,
   DocumentSearchResponse,
   DocumentChatResponse,
+  ChatHistoryResponse,
 } from '@/types';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
@@ -1009,6 +1010,26 @@ class ApiClient {
       method: 'POST',
       body: JSON.stringify({ message }),
     });
+  }
+
+  async getChatHistory(
+    documentId: string,
+    versionId: string
+  ): Promise<ChatHistoryResponse> {
+    return this.request<ChatHistoryResponse>(
+      `/api/v1/documents/${documentId}/versions/${versionId}/chat`,
+      { method: 'GET' }
+    );
+  }
+
+  async getChatHistoryMy(
+    documentId: string,
+    versionId: string
+  ): Promise<ChatHistoryResponse> {
+    return this.request<ChatHistoryResponse>(
+      `/api/v1/documents/${documentId}/versions/${versionId}/chat/me`,
+      { method: 'GET' }
+    );
   }
 
   async chatWithDocumentVersion(

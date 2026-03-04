@@ -71,6 +71,8 @@ export default function DocumentDetailPage() {
         updateDocument: (id, data) => api.updateDocument(id, data),
         chatWithVersion: (docId, versionId, msg) =>
           api.chatWithDocumentVersion(docId, versionId, msg),
+        getChatHistory: (docId, versionId) =>
+          api.getChatHistory(docId, versionId),
       }}
       previewUrlSuffix=""
     />

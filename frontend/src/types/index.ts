@@ -330,6 +330,15 @@ export interface DocumentChatResponse {
   message: string;
 }
 
+export interface ChatMessage {
+  role: 'user' | 'assistant';
+  content: string;
+}
+
+export interface ChatHistoryResponse {
+  messages: ChatMessage[];
+}
+
 export interface DocumentFilters {
   category_id?: string;
   stage_id?: string;
