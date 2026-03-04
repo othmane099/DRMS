@@ -171,3 +171,12 @@ class DocumentChatRequest(BaseModel):
 
 class DocumentChatResponse(BaseModel):
     message: str
+
+
+class ChatMessage(BaseModel):
+    role: str
+    content: str
+
+
+class ChatHistoryResponse(BaseModel):
+    messages: list[ChatMessage]

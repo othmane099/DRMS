@@ -76,6 +76,7 @@ interface DocumentDetailProps {
     downloadVersion: (docId: string, versionId: string) => Promise<void>;
     updateDocument: (id: string, data: any) => Promise<Document>;
     chatWithVersion?: (docId: string, versionId: string, msg: string) => Promise<{ message: string }>;
+    getChatHistory?: (docId: string, versionId: string) => Promise<{ messages: { role: 'user' | 'assistant'; content: string }[] }>;
   };
   previewUrlSuffix?: string; // e.g., "" or "/me"
 }
@@ -1640,6 +1641,9 @@ export function DocumentDetail({
           documentName={document?.name ?? ''}
           versionNumber={chatVersion.version_number}
           onSend={(msg) => apiFunctions.chatWithVersion!(documentId, chatVersion.id, msg)}
+          onLoadHistory={apiFunctions.getChatHistory
+            ? () => apiFunctions.getChatHistory!(documentId, chatVersion.id)
+            : undefined}
         />
       )}
 

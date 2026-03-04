@@ -6,7 +6,7 @@ import redis.asyncio as aioredis
 
 logger = logging.getLogger(__name__)
 
-_CHAT_TTL = 86_400  # 24 hours
+_CHAT_TTL = 1_800  # 30 minutes
 _MAX_MESSAGES = 20  # keep last 20 messages
 
 
