@@ -13,7 +13,7 @@ interface DocumentChatModalProps {
   onClose: () => void;
   documentName: string;
   versionNumber?: number;
-  onSend: (message: string) => Promise<{ message: string }>;
+  onSend: (message: string, signal: AbortSignal) => Promise<{ message: string }>;
   onLoadHistory?: () => Promise<{ messages: ChatMessage[] }>;
 }
 
@@ -31,6 +31,7 @@ export function DocumentChatModal({
   const [historyLoading, setHistoryLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
+  const abortRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -47,27 +48,41 @@ export function DocumentChatModal({
   }, [messages, loading]);
 
   const handleClose = () => {
+    abortRef.current?.abort();
     setMessages([]);
     setInput('');
     setError(null);
     onClose();
   };
 
+  const handleStop = () => {
+    abortRef.current?.abort();
+  };
+
   const handleSend = async () => {
     const text = input.trim();
     if (!text || loading) return;
+
+    const controller = new AbortController();
+    abortRef.current = controller;
 
     setInput('');
     setError(null);
     setMessages((prev) => [...prev, { role: 'user', content: text }]);
     setLoading(true);
     try {
-      const response = await onSend(text);
+      const response = await onSend(text, controller.signal);
       setMessages((prev) => [...prev, { role: 'assistant', content: response.message }]);
-    } catch {
-      setError('Failed to get a response. Please try again.');
+    } catch (err: unknown) {
+      if (err instanceof Error && err.name === 'AbortError') {
+        // user stopped — remove the pending user message
+        setMessages((prev) => prev.slice(0, -1));
+      } else {
+        setError('Failed to get a response. Please try again.');
+      }
     } finally {
       setLoading(false);
+      abortRef.current = null;
     }
   };
 
@@ -146,13 +161,22 @@ export function DocumentChatModal({
             disabled={loading}
             className="flex-1 px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50"
           />
-          <button
-            onClick={handleSend}
-            disabled={loading || !input.trim()}
-            className="px-4 py-2 bg-black text-white text-sm font-medium rounded-md hover:bg-gray-800 disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            Send
-          </button>
+          {loading ? (
+            <button
+              onClick={handleStop}
+              className="px-4 py-2 bg-red-600 text-white text-sm font-medium rounded-md hover:bg-red-700"
+            >
+              Stop
+            </button>
+          ) : (
+            <button
+              onClick={handleSend}
+              disabled={!input.trim()}
+              className="px-4 py-2 bg-black text-white text-sm font-medium rounded-md hover:bg-gray-800 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              Send
+            </button>
+          )}
         </div>
       </div>
     </Modal>

@@ -1035,22 +1035,24 @@ class ApiClient {
   async chatWithDocumentVersion(
     documentId: string,
     versionId: string,
-    message: string
+    message: string,
+    signal?: AbortSignal
   ): Promise<DocumentChatResponse> {
     return this.request<DocumentChatResponse>(
       `/api/v1/documents/${documentId}/versions/${versionId}/chat`,
-      { method: 'POST', body: JSON.stringify({ message }) }
+      { method: 'POST', body: JSON.stringify({ message }), signal }
     );
   }
 
   async chatMyDocumentVersion(
     documentId: string,
     versionId: string,
-    message: string
+    message: string,
+    signal?: AbortSignal
   ): Promise<DocumentChatResponse> {
     return this.request<DocumentChatResponse>(
       `/api/v1/documents/${documentId}/versions/${versionId}/chat/me`,
-      { method: 'POST', body: JSON.stringify({ message }) }
+      { method: 'POST', body: JSON.stringify({ message }), signal }
     );
   }
 }

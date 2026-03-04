@@ -32,8 +32,8 @@ export default function DocumentsPage() {
           updateDocument: (id, data) => api.updateDocument(id, data),
           generateShareLink: (id, data) => api.generateShareLink(id, data),
           getVersions: (id) => api.getDocumentVersions(id),
-          chatWithVersion: (docId, versionId, msg) =>
-            api.chatWithDocumentVersion(docId, versionId, msg),
+          chatWithVersion: (docId, versionId, msg, signal) =>
+            api.chatWithDocumentVersion(docId, versionId, msg, signal),
           getChatHistory: (docId, versionId) =>
             api.getChatHistory(docId, versionId),
         }}

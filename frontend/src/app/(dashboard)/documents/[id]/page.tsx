@@ -69,8 +69,8 @@ export default function DocumentDetailPage() {
         downloadDocument: (id) => api.downloadDocument(id),
         downloadVersion: (docId, versionId) => api.downloadDocumentVersion(docId, versionId),
         updateDocument: (id, data) => api.updateDocument(id, data),
-        chatWithVersion: (docId, versionId, msg) =>
-          api.chatWithDocumentVersion(docId, versionId, msg),
+        chatWithVersion: (docId, versionId, msg, signal) =>
+          api.chatWithDocumentVersion(docId, versionId, msg, signal),
         getChatHistory: (docId, versionId) =>
           api.getChatHistory(docId, versionId),
       }}

@@ -39,7 +39,7 @@ interface DocumentsListProps {
     archiveDocument: (id: string) => Promise<Document>;
     updateDocument: (id: string, data: any) => Promise<Document>;
     generateShareLink: (id: string, data: any) => Promise<ShareLinkResponse>;
-    chatWithVersion?: (docId: string, versionId: string, msg: string) => Promise<{ message: string }>;
+    chatWithVersion?: (docId: string, versionId: string, msg: string, signal?: AbortSignal) => Promise<{ message: string }>;
     getChatHistory?: (docId: string, versionId: string) => Promise<{ messages: { role: 'user' | 'assistant'; content: string }[] }>;
     getVersions?: (id: string) => Promise<DocumentVersion[]>;
   };
@@ -451,7 +451,7 @@ export function DocumentsList({ title, description, basePath, permissions, apiFu
             setChatVersionId(null);
           }}
           documentName={chatDocument.name}
-          onSend={(msg) => apiFunctions.chatWithVersion!(chatDocument.id, chatVersionId, msg)}
+          onSend={(msg, signal) => apiFunctions.chatWithVersion!(chatDocument.id, chatVersionId, msg, signal)}
           onLoadHistory={apiFunctions.getChatHistory
             ? () => apiFunctions.getChatHistory!(chatDocument.id, chatVersionId)
             : undefined}
