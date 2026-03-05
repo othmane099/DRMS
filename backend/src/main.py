@@ -5,8 +5,6 @@ from pathlib import Path
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from prometheus_fastapi_instrumentator import Instrumentator
-
 sys.path.append(f"{os.getcwd()}/src")
 from auth.api import router as auth_router
 from auth.logged_histories.api import router as logged_histories_router
@@ -23,7 +21,6 @@ from core.dashboard.api import router as dashboard_router
 from core.documents.api import router as documents_router
 from core.histories.api import router as histories_router
 from core.reminders.api import router as reminders_router
-from telemetry import setup_telemetry
 
 logging_config_path = Path(__file__).parent / "logging.ini"
 logging.getLogger().setLevel(settings.LOG_LEVEL)
@@ -34,8 +31,6 @@ app = FastAPI(
 
 container = Container()
 container.wire(modules=[__name__])
-
-setup_telemetry(app)
 
 app.add_middleware(
     CORSMiddleware,
@@ -59,8 +54,6 @@ app.include_router(documents_router, prefix="/api/v1")
 app.include_router(dashboard_router, prefix="/api/v1")
 app.include_router(reminders_router, prefix="/api/v1")
 app.include_router(histories_router, prefix="/api/v1")
-
-Instrumentator().instrument(app).expose(app, include_in_schema=False)
 
 
 @app.get("/health")
