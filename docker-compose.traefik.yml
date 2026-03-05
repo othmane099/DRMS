@@ -1,0 +1,17 @@
+version: '3.8'
+
+services:
+  traefik:
+    image: traefik:v3
+    command:
+      - "--providers.file.filename=/etc/traefik/routes.yml"
+      - "--entrypoints.web.address=:8888"
+      - "--api.dashboard=true"
+      - "--api.insecure=true"
+    ports:
+      - "8888:8888"
+      - "8080:8080"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - ./traefik/routes.yml:/etc/traefik/routes.yml:ro
