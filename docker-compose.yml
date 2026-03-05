@@ -1,6 +1,34 @@
 version: '3.8'
 
+x-backend-env: &backend-env
+  DATABASE_URL: postgresql+asyncpg://test:test123@postgres:5432/postgres
+  REDIS_URL: redis://redis:6379
+  CELERY_BROKER_URL: redis://redis:6379/1
+  CELERY_RESULT_BACKEND: redis://redis:6379/1
+  LOG_LEVEL: DEBUG
+  UPLOAD_DIR: /app/uploads
+
+x-backend-depends: &backend-depends
+  postgres:
+    condition: service_healthy
+  redis:
+    condition: service_healthy
+
 services:
+  traefik:
+    image: traefik:v3
+    command:
+      - "--providers.docker=true"
+      - "--providers.docker.exposedbydefault=false"
+      - "--entrypoints.web.address=:8888"
+      - "--api.dashboard=true"
+      - "--api.insecure=true"
+    ports:
+      - "8888:8888"
+      - "8080:8080"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+
   postgres:
     image: postgres:17-alpine
     environment:
@@ -17,28 +45,73 @@ services:
       timeout: 5s
       retries: 5
 
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
   backend:
     build: ./backend
-    ports:
-      - "8000:8000"
     depends_on:
-      postgres:
-        condition: service_healthy
+      <<: *backend-depends
     volumes:
-      - uploaded_documents:/app/documents
+      - uploaded_documents:/app/uploads
     environment:
-      - DATABASE_URL=postgresql+asyncpg://test:test123@postgres:5432/postgres
-      - LOG_LEVEL=DEBUG
-      - UPLOAD_DIR=/app/uploads
+      <<: *backend-env
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.backend.rule=Host(`api.localhost`)"
+      - "traefik.http.routers.backend.entrypoints=web"
+      - "traefik.http.services.backend.loadbalancer.server.port=8000"
+
+  celery-worker:
+    build: ./backend
+    entrypoint: []
+    command: celery -A src.celery_app worker --loglevel=info
+    depends_on:
+      <<: *backend-depends
+    volumes:
+      - uploaded_documents:/app/uploads
+    environment:
+      <<: *backend-env
+
+  celery-beat:
+    build: ./backend
+    entrypoint: []
+    command: celery -A src.celery_app beat --loglevel=info
+    depends_on:
+      <<: *backend-depends
+    environment:
+      <<: *backend-env
+
+  bot:
+    build: ./backend
+    entrypoint: []
+    command: python src/bot/main.py
+    depends_on:
+      <<: *backend-depends
+    volumes:
+      - uploaded_documents:/app/uploads
+    environment:
+      <<: *backend-env
+      TELEGRAM_BOT_TOKEN: TELEGRAM_BOT_TOKEN_REDACTED
 
   frontend:
     depends_on:
       - backend
     build: ./frontend
     container_name: frontend
-    ports:
-      - "3000:3000"
     restart: unless-stopped
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.frontend.rule=Host(`localhost`)"
+      - "traefik.http.routers.frontend.entrypoints=web"
+      - "traefik.http.services.frontend.loadbalancer.server.port=3000"
 
 
 volumes:
