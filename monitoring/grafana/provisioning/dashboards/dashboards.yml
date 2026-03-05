@@ -1,8 +1,0 @@
-apiVersion: 1
-
-providers:
-  - name: DRMS
-    folder: DRMS
-    type: file
-    options:
-      path: /etc/grafana/provisioning/dashboards

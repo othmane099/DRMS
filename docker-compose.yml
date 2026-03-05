@@ -30,8 +30,6 @@ services:
       - DATABASE_URL=postgresql+asyncpg://test:test123@postgres:5432/postgres
       - LOG_LEVEL=DEBUG
       - UPLOAD_DIR=/app/uploads
-      - OTEL_ENABLED=true
-      - OTEL_ENDPOINT=http://tempo:4318
 
   frontend:
     depends_on:
@@ -42,56 +40,7 @@ services:
       - "3000:3000"
     restart: unless-stopped
 
-  prometheus:
-    image: prom/prometheus:latest
-    ports:
-      - "9090:9090"
-    volumes:
-      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
-    depends_on:
-      - backend
-    restart: unless-stopped
-
-  postgres-exporter:
-    image: prometheuscommunity/postgres-exporter:latest
-    environment:
-      - DATA_SOURCE_NAME=postgresql://test:test123@postgres:5432/postgres?sslmode=disable
-    ports:
-      - "9187:9187"
-    depends_on:
-      postgres:
-        condition: service_healthy
-    restart: unless-stopped
-
-  tempo:
-    image: grafana/tempo:2.6.1
-    command: ["-config.file=/etc/tempo.yml"]
-    volumes:
-      - ./monitoring/tempo.yml:/etc/tempo.yml:ro
-      - tempo_data:/var/tempo
-    ports:
-      - "4318:4318"
-      - "3200:3200"
-    restart: unless-stopped
-
-  grafana:
-    image: grafana/grafana:latest
-    ports:
-      - "3001:3000"
-    depends_on:
-      - prometheus
-    volumes:
-      - grafana_data:/var/lib/grafana
-      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
-    environment:
-      - GF_SECURITY_ADMIN_USER=admin
-      - GF_SECURITY_ADMIN_PASSWORD=admin
-      - GF_USERS_ALLOW_SIGN_UP=false
-    restart: unless-stopped
-
 
 volumes:
   postgres_data:
   uploaded_documents:
-  grafana_data:
-  tempo_data:
