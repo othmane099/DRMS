@@ -8,7 +8,7 @@ export default function DocumentsPage() {
     <div className="space-y-6">
       <AIDocumentSearch
         onSearch={(query) => api.searchDocuments(query)}
-        placeholder="e.g. list all contracts assigned to John created in 2024"
+        placeholder="e.g. list all documents assigned to John created in 2024"
       />
 
       <DocumentsList
