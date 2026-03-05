@@ -173,6 +173,7 @@ class Reminder(Base):  # type: ignore
         onupdate=func.now(),
         nullable=True,
     )
+    sent_at = Column(DateTime(timezone=True), nullable=True)
 
     # Relationships
     document = relationship("Document", back_populates="reminders")

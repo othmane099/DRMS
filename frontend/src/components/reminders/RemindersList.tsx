@@ -125,7 +125,7 @@ export function RemindersList({ title, description, permissions, apiFunctions }:
       });
       setReminders(response.data);
       setTotalPages(response.total_pages ?? 1);
-      setTotalRows(response.total ?? 0);
+      setTotalRows(response.total_rows ?? 0);
     } catch (err) {
       const apiError = err as ApiError;
       if (apiError.status === 403) {

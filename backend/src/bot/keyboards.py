@@ -86,3 +86,9 @@ def rem_back_keyboard(from_page: str) -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(
         [[InlineKeyboardButton("◀ Back to list", callback_data=f"r:{from_page}")]]
     )
+
+
+def rem_doc_detail_keyboard(doc_id: str) -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(
+        [[InlineKeyboardButton("⬇️ Download", callback_data=f"rddw:{doc_id}")]]
+    )

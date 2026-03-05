@@ -1,8 +1,8 @@
-from datetime import date, time
+from datetime import date, datetime, time
 from typing import Protocol
 
 from pydantic import UUID4
-from sqlalchemy import func, or_, select
+from sqlalchemy import func, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -67,6 +67,10 @@ class ReminderRepository(Protocol):
     async def get_document_reminders_assigned_to_user(
         self, document_id: UUID4, user_id: UUID4
     ) -> list[Reminder]: ...
+
+    async def get_due_reminders(self, now: datetime) -> list[Reminder]: ...
+
+    async def mark_reminder_sent(self, reminder_id: UUID4, sent_at: datetime) -> None: ...
 
     async def delete_reminder(self, reminder_id: UUID4) -> None: ...
 
@@ -295,6 +299,36 @@ class ReminderRepositoryImpl(ReminderRepository):
         )
         result = await self.session.execute(query)
         return list(result.scalars().all())
+
+    async def get_due_reminders(self, now: datetime) -> list[Reminder]:
+        """Return unsent reminders whose scheduled datetime <= now.
+
+        PostgreSQL supports date + time → timestamp natively.
+        We compare against a naive datetime to avoid tz-casting issues.
+        """
+        naive_now = now.replace(tzinfo=None)
+        query = (
+            select(Reminder)
+            .where(
+                Reminder.sent_at.is_(None),
+                (Reminder.date + Reminder.time) <= naive_now,
+            )
+            .options(
+                selectinload(Reminder.assigned_users),
+                selectinload(Reminder.document),
+                selectinload(Reminder.creator),
+            )
+        )
+        result = await self.session.execute(query)
+        return list(result.scalars().all())
+
+    async def mark_reminder_sent(self, reminder_id: UUID4, sent_at: datetime) -> None:
+        await self.session.execute(
+            update(Reminder)
+            .where(Reminder.id == reminder_id)
+            .values(sent_at=sent_at)
+        )
+        await self.session.flush()
 
     async def delete_reminder(self, reminder_id: UUID4) -> None:
         result = await self.session.execute(

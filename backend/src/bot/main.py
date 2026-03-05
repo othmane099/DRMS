@@ -16,7 +16,7 @@ from bot.handlers.documents import (
     my_documents_callback,
     search_document,
 )
-from bot.handlers.reminders import reminders, reminders_callback
+from bot.handlers.reminders import reminder_doc_callback, reminders, reminders_callback
 from config import settings
 from containers import Container
 
@@ -47,6 +47,7 @@ def main() -> None:
     app.add_handler(CallbackQueryHandler(documents_callback, pattern=r"^d[dw]?:"))
     app.add_handler(CallbackQueryHandler(my_documents_callback, pattern=r"^md[dw]?:"))
     app.add_handler(CallbackQueryHandler(reminders_callback, pattern=r"^rd?:"))
+    app.add_handler(CallbackQueryHandler(reminder_doc_callback, pattern=r"^rdd[w]?:"))
 
     logger.info("DRMS bot is running — press Ctrl+C to stop.")
     app.run_polling()

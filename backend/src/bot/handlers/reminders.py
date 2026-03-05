@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+from pathlib import Path
 from uuid import UUID
 
 from dependency_injector.wiring import Provide, inject
@@ -8,7 +9,9 @@ from telegram import Update
 from telegram.ext import ContextTypes
 
 from auth.users.service import UserService
-from bot.keyboards import h, rem_back_keyboard, rem_list_keyboard
+from bot.handlers.documents import _doc_detail_text
+from bot.keyboards import h, rem_back_keyboard, rem_doc_detail_keyboard, rem_list_keyboard
+from core.documents.service import DocumentService
 from core.reminders.service import ReminderService
 from schemas import Error
 
@@ -70,7 +73,7 @@ async def reminders(
     result = await reminder_svc.get_all_reminders_paginated(
         page=1,
         page_size=_PAGE_SIZE,
-        user_id=user.id,
+        current_user=user,
     )
 
     if isinstance(result, Error):
@@ -110,7 +113,7 @@ async def reminders_callback(
 
     if data.startswith("rd:"):
         _, rem_id, from_page = data.split(":", 2)
-        rem = await reminder_svc.get_reminder_by_id(UUID(rem_id), user_id=user.id)
+        rem = await reminder_svc.get_reminder_by_id(UUID(rem_id), current_user=user)
         if isinstance(rem, Error):
             await query.edit_message_text(f"Could not load reminder: {rem.detail}")
             return
@@ -124,7 +127,7 @@ async def reminders_callback(
         result = await reminder_svc.get_all_reminders_paginated(
             page=page,
             page_size=_PAGE_SIZE,
-            user_id=user.id,
+            current_user=user,
         )
         if isinstance(result, Error):
             await query.edit_message_text(f"Could not fetch reminders: {result.detail}")
@@ -133,4 +136,60 @@ async def reminders_callback(
             _rem_list_text(result, page),
             parse_mode="HTML",
             reply_markup=rem_list_keyboard(result.data, page, result.total_pages),
+        )
+
+
+@inject
+async def reminder_doc_callback(
+    update: Update,
+    context: ContextTypes.DEFAULT_TYPE,
+    user_svc: UserService = Provide["user_service"],
+    document_svc: DocumentService = Provide["document_service"],
+) -> None:
+    query = update.callback_query
+    if not query or not update.effective_chat:
+        return
+    await query.answer()
+
+    chat_id = update.effective_chat.id
+    user = await user_svc.get_user_by_telegram_chat_id(chat_id)
+    if isinstance(user, Error):
+        await query.edit_message_text("Session expired. Please /login again.")
+        return
+
+    data: str = query.data  # type: ignore
+
+    if data.startswith("rddw:"):
+        doc_id = data.split(":", 1)[1]
+        file_path_result = await document_svc.get_document_file_path(
+            UUID(doc_id), current_user=user
+        )
+        if isinstance(file_path_result, Error):
+            await context.bot.send_message(
+                chat_id=chat_id,
+                text=f"Download failed: {file_path_result.detail}",
+            )
+            return
+        path = Path(file_path_result)
+        if not path.exists():
+            await context.bot.send_message(
+                chat_id=chat_id, text="File not found on disk."
+            )
+            return
+        with path.open("rb") as f:
+            await context.bot.send_document(
+                chat_id=chat_id,
+                document=f,
+                filename=path.name,
+            )
+    else:
+        doc_id = data.split(":", 1)[1]
+        doc = await document_svc.get_document_by_id(UUID(doc_id), current_user=user)
+        if isinstance(doc, Error):
+            await query.edit_message_text(f"Could not load document: {doc.detail}")
+            return
+        await query.edit_message_text(
+            _doc_detail_text(doc),
+            parse_mode="HTML",
+            reply_markup=rem_doc_detail_keyboard(doc_id),
         )
