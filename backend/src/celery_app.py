@@ -11,7 +11,7 @@ celery_app = Celery(
     "drms",
     broker=settings.CELERY_BROKER_URL,
     backend=settings.CELERY_RESULT_BACKEND,
-    include=["core.documents.tasks"],
+    include=["core.documents.tasks", "core.reminders.tasks"],
 )
 
 celery_app.conf.update(
@@ -20,4 +20,10 @@ celery_app.conf.update(
     result_serializer="json",
     timezone="UTC",
     enable_utc=True,
+    beat_schedule={
+        "dispatch-due-reminders-every-minute": {
+            "task": "core.reminders.tasks.dispatch_due_reminders",
+            "schedule": 60.0,
+        },
+    },
 )

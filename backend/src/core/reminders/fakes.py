@@ -202,6 +202,30 @@ class FakeReminderRepository(ReminderRepository):
         reminders.sort(key=lambda r: (r.date, r.time))
         return reminders
 
+    async def get_due_reminders(self, now: datetime) -> list[Reminder]:
+        naive_now = now.replace(tzinfo=None)
+        return [
+            r
+            for r in self.reminders.values()
+            if r.sent_at is None
+            and datetime.combine(r.date, r.time) <= naive_now
+        ]
+
+    async def mark_reminder_sent(self, reminder_id: UUID4, sent_at: datetime) -> None:
+        reminder = self.reminders.get(reminder_id)
+        if reminder:
+            reminder.sent_at = sent_at
+
+    async def get_document_reminders_assigned_to_user(
+        self, document_id: UUID4, user_id: UUID4
+    ) -> list[Reminder]:
+        return [
+            r
+            for r in self.reminders.values()
+            if r.document_id == document_id
+            and user_id in [a.id for a in r.assigned_users]
+        ]
+
     async def delete_reminder(self, reminder_id: UUID4) -> None:
         if reminder_id in self.reminders:
             del self.reminders[reminder_id]

@@ -141,6 +141,8 @@ export interface PaginatedResponse<T> {
   page: number;
   page_size: number;
   total_pages?: number;
+  total_rows?: number;
+  current_page?: number;
 }
 
 export interface LoginResponse {
