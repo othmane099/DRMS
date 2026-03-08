@@ -37,6 +37,12 @@ secure:
 run:
 	${PYTHON} -m uvicorn src.main:app --host 0.0.0.0 --port 8000 --reload --log-config logging.ini
 
+bot:
+	${PYTHON} src/bot/main.py
+
+celery:
+	uv run celery -A src.celery_app:celery_app worker --beat --loglevel=info
+
 prod:
 	${PYTHON} -m gunicorn src.main:app -k uvicorn.workers.UvicornWorker -w 1 -b 0.0.0.0:8000 --access-logfile - --error-logfile -
 
