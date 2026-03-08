@@ -27,11 +27,26 @@ A web-based system for managing and organizing digital records and documents.
 - ⏰ Reminders with user assignments
 - 📈 Dashboard
 
+### AI / LLM Features
+- 🔍 Natural language document search (LangGraph agent extracts structured filters)
+- 📝 AI-generated document summaries
+- 💬 Document chat / RAG (conversational Q&A using ChromaDB + Ollama)
+
+### Telegram Bot
+- 🤖 Full Telegram bot interface (`/documents`, `/mydocuments`, `/reminders`, `/search`)
+- 🔗 Account linking via `/login` / `/unlink`
+- 🔔 Automated reminder notifications pushed to Telegram
+
+### Document Processing
+- 📑 Automatic text extraction (PDF, DOCX, XLSX, PPTX, TXT)
+- 🧠 Background vector embedding for RAG (Celery + ChromaDB)
+- ⚙️ Asynchronous task queue (Celery worker + beat scheduler)
+
 ![document.png](img/document.png)
 
 ## Tech Stack
 
-- **Backend:** Python 3.14+, FastAPI, SQLAlchemy, PostgreSQL
+- **Backend:** Python 3.14+, FastAPI, SQLAlchemy, PostgreSQL, Redis, Celery
 - **Frontend:** Next.js 16, React 19, TypeScript, TailwindCSS
 
 ## How to Run Locally
