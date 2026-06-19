@@ -30,7 +30,7 @@ A web-based system for managing and organizing digital records and documents.
 ### AI / LLM Features
 - 🔍 Natural language document search (LangGraph agent extracts structured filters)
 - 📝 AI-generated document summaries
-- 💬 Document chat / RAG (conversational Q&A using ChromaDB + Ollama)
+- 💬 Document chat / RAG (conversational Q&A using Qdrant + Ollama)
 
 ### Telegram Bot
 - 🤖 Full Telegram bot interface (`/documents`, `/mydocuments`, `/reminders`, `/search`)
@@ -39,7 +39,7 @@ A web-based system for managing and organizing digital records and documents.
 
 ### Document Processing
 - 📑 Automatic text extraction (PDF, DOCX, XLSX, PPTX, TXT)
-- 🧠 Background vector embedding for RAG (Celery + ChromaDB)
+- 🧠 Background vector embedding for RAG (Celery + Qdrant)
 - ⚙️ Asynchronous task queue (Celery worker + beat scheduler)
 
 ![document.png](img/document.png)
