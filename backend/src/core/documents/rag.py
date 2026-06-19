@@ -1,10 +1,10 @@
 import logging
-from pathlib import Path
 from typing import Protocol
 
-from langchain_chroma import Chroma
 from langchain_ollama import OllamaEmbeddings
+from langchain_qdrant import QdrantVectorStore
 from langchain_text_splitters import RecursiveCharacterTextSplitter
+from qdrant_client import QdrantClient
 
 from core.documents.text_extractor import extract_text
 
@@ -24,17 +24,16 @@ class RagServiceImpl(RagService):
         self,
         embeddings: OllamaEmbeddings,
         splitter: RecursiveCharacterTextSplitter,
-        chroma_dir: str,
+        qdrant_url: str,
     ) -> None:
         self._embeddings = embeddings
         self._splitter = splitter
-        self._chroma_dir = Path(chroma_dir)
+        self._qdrant_url = qdrant_url
 
     def _collection_name(self, version_id: str) -> str:
         return f"doc_{version_id.replace('-', '')}"
 
     async def build_vectorstore(self, version_id: str, file_path: str) -> None:
-        """Extract, chunk, embed, and persist a ChromaDB collection for this version."""
         text = await extract_text(file_path)
         if not text:
             logger.info(
@@ -43,33 +42,32 @@ class RagServiceImpl(RagService):
             return
 
         docs = self._splitter.create_documents([text])
-
         collection = self._collection_name(version_id)
-        persist_dir = str(self._chroma_dir / collection)
-        store = Chroma(
+        QdrantVectorStore.from_documents(
+            docs,
+            self._embeddings,
+            url=self._qdrant_url,
             collection_name=collection,
-            embedding_function=self._embeddings,
-            persist_directory=persist_dir,
+            force_recreate=True,
         )
-        store.add_documents(docs)
         logger.info(
             "build_vectorstore: indexed %d chunks for version %s", len(docs), version_id
         )
 
     async def retrieve_context(self, version_id: str, query: str) -> str:
-        """Return top-k relevant chunks as a single context string."""
         collection = self._collection_name(version_id)
-        persist_dir = self._chroma_dir / collection
-        if not persist_dir.exists():
+        client = QdrantClient(url=self._qdrant_url)
+        try:
+            exists = client.collection_exists(collection)
+        except Exception:
+            return ""
+        if not exists:
             return ""
 
-        store = Chroma(
+        store = QdrantVectorStore(
+            client=client,
             collection_name=collection,
-            embedding_function=self._embeddings,
-            persist_directory=str(persist_dir),
+            embedding=self._embeddings,
         )
-        if store._collection.count() == 0:
-            return ""
-
         results = store.similarity_search(query, k=_TOP_K)
         return "\n\n".join(doc.page_content for doc in results)

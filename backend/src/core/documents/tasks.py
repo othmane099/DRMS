@@ -89,7 +89,7 @@ async def _run_document_embedding(version_id: str, document_file: str) -> None:
         rag_service = RagServiceImpl(
             embeddings=embeddings,
             splitter=splitter,
-            chroma_dir=settings.CHROMA_DIR,
+            qdrant_url=settings.QDRANT_URL,
         )
         await rag_service.build_vectorstore(version_id, document_file)
         logger.info("Embedding task completed (version_id=%s)", version_id)

@@ -104,7 +104,7 @@ class Container(containers.DeclarativeContainer):
         RagServiceImpl,
         embeddings=ollama_embeddings,
         splitter=rag_splitter,
-        chroma_dir=settings.CHROMA_DIR,
+        qdrant_url=settings.QDRANT_URL,
     )
     chat_store_service = providers.Factory(
         ChatStoreServiceImpl,

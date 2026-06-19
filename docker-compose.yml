@@ -7,27 +7,23 @@ x-backend-env: &backend-env
   CELERY_RESULT_BACKEND: redis://redis:6379/1
   LOG_LEVEL: DEBUG
   UPLOAD_DIR: /app/uploads
+  QDRANT_URL: http://qdrant:6333
 
 x-backend-depends: &backend-depends
   postgres:
     condition: service_healthy
   redis:
     condition: service_healthy
+  qdrant:
+    condition: service_started
 
 services:
-  traefik:
-    image: traefik:v3
-    command:
-      - "--providers.docker=true"
-      - "--providers.docker.exposedbydefault=false"
-      - "--entrypoints.web.address=:8888"
-      - "--api.dashboard=true"
-      - "--api.insecure=true"
+  qdrant:
+    image: qdrant/qdrant
     ports:
-      - "8888:8888"
-      - "8080:8080"
+      - "6333:6333"
     volumes:
-      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - qdrant_data:/qdrant/storage
 
   postgres:
     image: postgres:17-alpine
@@ -57,17 +53,14 @@ services:
 
   backend:
     build: ./backend
+    ports:
+      - "8000:8000"
     depends_on:
       <<: *backend-depends
     volumes:
       - uploaded_documents:/app/uploads
     environment:
       <<: *backend-env
-    labels:
-      - "traefik.enable=true"
-      - "traefik.http.routers.backend.rule=Host(`api.localhost`)"
-      - "traefik.http.routers.backend.entrypoints=web"
-      - "traefik.http.services.backend.loadbalancer.server.port=8000"
 
   celery-worker:
     build: ./backend
@@ -89,31 +82,15 @@ services:
     environment:
       <<: *backend-env
 
-  bot:
-    build: ./backend
-    entrypoint: []
-    command: python src/bot/main.py
-    depends_on:
-      <<: *backend-depends
-    volumes:
-      - uploaded_documents:/app/uploads
-    environment:
-      <<: *backend-env
-      TELEGRAM_BOT_TOKEN: TELEGRAM_BOT_TOKEN_REDACTED
-
   frontend:
+    build: ./frontend
+    ports:
+      - "3000:3000"
     depends_on:
       - backend
-    build: ./frontend
-    container_name: frontend
     restart: unless-stopped
-    labels:
-      - "traefik.enable=true"
-      - "traefik.http.routers.frontend.rule=Host(`localhost`)"
-      - "traefik.http.routers.frontend.entrypoints=web"
-      - "traefik.http.services.frontend.loadbalancer.server.port=3000"
-
 
 volumes:
   postgres_data:
   uploaded_documents:
+  qdrant_data:
